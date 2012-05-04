@@ -1,0 +1,19 @@
+# Automake files
+configure
+aclocal.m4
+compile
+config.guess
+config.sub
+depcomp
+install-sh
+missing
+makefile
+Makefile
+*.in
+autom4te.cache/
+configure.log
+config.*
+stamp-h1
+
+# temporary emacs files
+*~

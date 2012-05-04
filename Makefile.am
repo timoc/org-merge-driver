@@ -1,0 +1,4 @@
+ACLOCAL_AMFLAGS =
+SUBDIRS =
+dist_doc_DATA =
+EXTRA_DIST =
