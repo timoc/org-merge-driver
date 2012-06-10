@@ -4,8 +4,8 @@
 #include "Parser.h"
 #include "Lexer.h"
 */
-#include "org_mode.tab.h"
-#include "org_lex.yy.h"
+#include "org_parser.h"
+#include "org_lexer.h"
 
 char *progname;
 //double yylval;

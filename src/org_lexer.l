@@ -9,9 +9,8 @@ int yywrap();
 /* extern int yylex (void); */
 extern void yyerror (char const  *);
 %}
-/*
-%option outfile="org_lex.yy.c" header-file="org_lex.yy.h"
-*/
+
+%option header-file="org_lexer.h"
 
 /* %option reentrant */
 /* %option bison-bridge */
