@@ -1,0 +1,6 @@
+#+TITLE: A New Title In File 2
+* original heading
+- here is some text
+** File 2 new sub heading
+* A new heading in file 2
+- with some text

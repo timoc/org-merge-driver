@@ -1,0 +1,7 @@
+- conflicting text in file 1
+* original heading
+- here is some text
+- add some text in file 1
+** New heading in file 1
+- more text
+*** Sub new heading in file 1

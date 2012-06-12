@@ -1,0 +1,3 @@
+* this is yet another test
+- with windows style endlines
+- i hope this works

@@ -1,0 +1,19 @@
+- this text is new, but the same in both files
+* unchanged 1
+:PROPERTIES:
+:ID: 100
+:END:
+- this is just a test
+* unchanged 1
+** deleted in second
+- I'm wondering what this will do
+* new in file 1
+* unchanged 2
+- testing is so much fun
+** sub new heading in file 1
+** unchanged 3
+** moved level 2 in first
+*** moved level 2 in second
+** different text in both
+- file 1 different text
+
