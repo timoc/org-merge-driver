@@ -1,11 +1,12 @@
 #+TITLE: Org Merge Driver Implementation Notes
 #+STARTUP: indent
+#+FILETAGS :note:doc:
 
 * Project Details
 ** Contact Information
 Andrew Young, youngar17 at gmail.com
 
-** Milestones [42%]
+** Milestones [42%]                                             :milestones:
 *** DONE Start Project
 *** DONE prototype parser (limited functionality)
 *** DONE prototype tree construction
@@ -19,13 +20,16 @@ Andrew Young, youngar17 at gmail.com
 *** TODO org mode merging rules
 *** TODO additional features
 *** TODO finishing touches
-*** TODO documentation and distribution [50%]
+*** TODO documentation and distribution
 
-** coding conventions
+** Coding Conventions
 - [[http://www.gnu.org/software/emacs/elisp/html_node/Coding-Conventions.html][elisp conventions]]
 - must sign a [[http://orgmode.org/worg/org-contribute.html][copyright grant]] for the FSF!
 - [[http://www.gnu.org/prep/standards/standards.html][GNU Coding Standards]]
-- use [[www.doxygen.org/][Doxygen]] to document the code
+- use [[http://www.doxygen.org/][Doxygen]] to document the code
+
+** Collaboration
+
 
 * Notes
 * General Merging Implementation
@@ -206,29 +210,34 @@ what if someone is relying on the non-transitive behavior? (i don't know how)
   program[fn:4] for ordered lists
 *** Output
 -
+
 * Org-merge-tool
 ** Org-Mode Data Representation
+- Elements below a heading will be considered unordered
+- Numbered list
+  - Identified as a whole if it matches exactly
+
+*** Org-mode Document Elements
+**** Headlines
 - Headings will be considered unordered trees
   - A heading will be matched by its UID if it has one
   - headings will be matched by their title otherwise
-- Elements below a heading will be considered unordered
-- Numbered lists
-  - Identified as a whole if it matches exactly
-
-*** All Org-mode Elements
-- headlines
-  - never ordered
-  - keywords not apart of the name
-- keywords
+  Never ordered
+  - Keywords not apart of the name
+**** Keywords
   - TODO, user defined, properties
   - perfile keywords #+TODO:
-- cookies: [#A]
+
+***** TODO What is a perfile                          :doc:note:question:
+
+**** Cookies: [#A]
   - always in square brackets?
+  - Always in headings?
   - [#A], [0%], [0/0]
-- Tags :tag:
+**** Tags                                                            :tag:
   - only for headlines
   - #+filetags for tags for everytihng in the file
-- plain lists
+**** Plain lists
   - within an outline tree entry
   - unordered (start with '-', '+', '*' as bullets)
   - ordered (numeral followed by 
@@ -236,33 +245,40 @@ what if someone is relying on the non-transitive behavior? (i don't know how)
   - ends at two blank lines or less indented
   - must have the same indentation level
   - can have checkboxes
-- blocks #BEGIN_.. blocks
+**** Blocks #BEGIN_.. blocks
   - #+STARTUP
-- Drawers
+**** Drawers
   - :DRAWERNAME:  this dra :END:
   - time stamp note in a drawer (C-c C-z)
   - drawers need to be defined in variable org-drawers
     - or by file basis: #+DRAWERS: HIDDEN PROPERTIES STATE
   - PROPERTIES for properties
-- Properties
+**** Properties
   - always in PROPERTIES drawer
-- Timestamps (in < > or [ ] brackets at the end of a headline)
-- Footnotes[[fn:2]
-  - [fn:1] footntoes!
-  - footnote inline definitions[fn:3]
-    - [fn:: this is inline]
-  - there is a function to automatically
-  - footnote defintions do not need to be ordered
+    
+***** TODO Can Properties be consolidated with drawers?        :question:
+**** Timestamps 
+- in < > or [ ] brackets at the end of a headline
+  - Can actually be placed almost anywhere
+  - Can be inside 
+**** Footnotes
+- [[fn:2]
+- [fn:1] footnotes!
+- footnote inline definitions[fn:3]
+  - [fn:: this is inline]
+- there is a function to automatically
+- footnote defintions do not need to be ordered
   - see org-footnote-auto-label
-- Tables (needs more work)
-  - calculations? exist?
+**** Tables (needs more work)
   - table row order might matter
   - '/' must be first field,
     - only 1?
   - Table references will be updated to match
-- hooks?
+***** TODO Define Table Elt
+- Calculations?  Exist?
+**** Hooks?
   - org-footnote-auto-adjust fixes footnote defintion order
-    
+
 ** Command Line Interface
 The cli will be written using argp and will conform to the gnu
 standards.  Existing mergetool interfaces will be used a basis.
@@ -281,19 +297,27 @@ The Lexer is responsible for:
 The Lexer is NOT responsible for:
 - Establishing the file stream.
 
-**** TODO Make explicit the Lexer's responsibilies
+**** TODO Make explicit the Lexer's responsibilities
 - Especially relating to the parser.
 
 *** Implementation Overview
 - The Lexer is implemented with [[http://flex.sourceforge.net/][flex]].
   - Documentation for flex can be found [[http://flex.sourceforge.net/manual/][here]].
 
+*** Tokens
+**** 
+
 ** Parser
 *** Responsibilities
 
 *** Implementation
-The parser is implemented with bison
-** 
+- The parser is implemented with [[http://www.gnu.org/software/bison/][Bison]].
+  - Documentation [[http://www.gnu.org/software/bison/manual/bison.html][here]].
+
+** Org Elements
+- The document elements are placed into a tree for processing.
+- Because 
+
 ** Modification Guesser?
 1. look for differences in the files
    1. this seems like it might have to be O(n^2)
