@@ -1,27 +1,32 @@
 #+TITLE: Org Merge Driver Implementation Notes
-* Project
+#+STARTUP: indent
+
+* Project Details
 ** Contact Information
-- Andrew Young, youngar17 at gmail.com
-** Milestones
-- Start Project
-- prototype parser (limited functionality)
-- prototype tree construction
-- prototype tree change detection
-- prototype tree merging
-- finish prototype
-- tree data interface
-- org-mode parser
-- general merging rule interface
-- org mode change detection
-- org mode merging rules
-- additional features
-- finishing touches
-- documentation and distribution
+Andrew Young, youngar17 at gmail.com
+
+** Milestones [42%]
+*** DONE Start Project
+*** DONE prototype parser (limited functionality)
+*** DONE prototype tree construction
+*** DONE prototype tree change detection
+*** DONE prototype tree merging
+*** DONE finish prototype
+*** TODO tree data interface
+*** TODO org-mode parser
+*** TODO general merging rule interface
+*** TODO org mode change detection
+*** TODO org mode merging rules
+*** TODO additional features
+*** TODO finishing touches
+*** TODO documentation and distribution [50%]
+
 ** coding conventions
 - [[http://www.gnu.org/software/emacs/elisp/html_node/Coding-Conventions.html][elisp conventions]]
 - must sign a [[http://orgmode.org/worg/org-contribute.html][copyright grant]] for the FSF!
 - [[http://www.gnu.org/prep/standards/standards.html][GNU Coding Standards]]
 - use [[www.doxygen.org/][Doxygen]] to document the code
+
 * Notes
 * General Merging Implementation
 ** Elements
@@ -209,7 +214,7 @@ what if someone is relying on the non-transitive behavior? (i don't know how)
 - Elements below a heading will be considered unordered
 - Numbered lists
   - Identified as a whole if it matches exactly
-  - 
+
 *** All Org-mode Elements
 - headlines
   - never ordered
@@ -257,14 +262,38 @@ what if someone is relying on the non-transitive behavior? (i don't know how)
   - Table references will be updated to match
 - hooks?
   - org-footnote-auto-adjust fixes footnote defintion order
+    
+** Command Line Interface
+The cli will be written using argp and will conform to the gnu
+standards.  Existing mergetool interfaces will be used a basis.
+
+*** Options
+**** Command Line Output
+**** File Output
+**** Merge Strategies
+
+*** TODO-List
+
+** Lexer
+*** Responsibilities
+The Lexer is responsible for:
+- ???
+The Lexer is NOT responsible for:
+- Establishing the file stream.
+
+**** TODO Make explicit the Lexer's responsibilies
+- Especially relating to the parser.
+
+*** Implementation Overview
+- The Lexer is implemented with [[http://flex.sourceforge.net/][flex]].
+  - Documentation for flex can be found [[http://flex.sourceforge.net/manual/][here]].
+
 ** Parser
-- possibly a more robust parser could be written by a generator
-- currently exists no Org-mode parser
-- could write the ground-work for a bison parser
-- need to use macros to automatically generate function hooks for
-  elements
-- the parser will be used in conjuction with the generalized tree
-  merging algorithm
+*** Responsibilities
+
+*** Implementation
+The parser is implemented with bison
+** 
 ** Modification Guesser?
 1. look for differences in the files
    1. this seems like it might have to be O(n^2)
@@ -283,9 +312,11 @@ what if someone is relying on the non-transitive behavior? (i don't know how)
 * Footnotes and Bibiliography
 -  [[http://git.savannah.gnu.org/gitweb/?p=gnulib.git;a=blob;f=lib/git-merge-changelog.c][git-merge-changelog]]provides a good example on how to write a merge driver
 - [[http://www.hiit.fi/files/fi/fc/papers/doceng04-pc.pdf][Three-way XML Merge]]
+
 [fn:4] The basic algorithm is described in "An O(ND) Difference
 Algorithm and its Variations", Eugene W. Myers, 'Algorithmica' Vol. 1
 No. 2, 1986, pp. 251-266; and in "A File Comparison Program", Webb
 Miller and Eugene W. Myers, 'Software--Practice and Experience'
 Vol. 15 No. 11, 1985, pp. 1025-1040. The algorithm was independently
 discovered as described in "Algorithms for Approximate String
+
