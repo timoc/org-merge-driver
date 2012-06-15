@@ -2,6 +2,7 @@
 %{
 /* Org Mode lexer */
 #include <stdio.h>
+#include <stdlib.h>
 #include "org_parser.h"
 
 int yywrap();
@@ -20,31 +21,75 @@ extern void yyerror (char const  *);
 /* %option noyywrap */
 /* %option bison-bridge */
 
-%x finish_line
+%x finish_line heading plain_list properties uid num_list
+%s property
 
 %%
-"\n\n\n" { /* New element detection */
-  return NEW_ELEMENT;
+[\n]*"\n\n\n" { /* New element detection */
+   printf ( "element break; %d\n", yyleng);
+   //return NEW_ELEMENT;
 }
 
 "\n" {
   //printf ("single newline\n");
-  return NEW_LINE;
+  //return NEW_LINE;
 }
 
 ^[*]+" " { /* Heading Recognition */
-  BEGIN(finish_line);
-  return HEADING;
+  printf ("heading level: %d, text:", yyleng -1);
+  BEGIN (heading);
+  //return HEADING;
 }
 
-^"- " {/* Plain List */
-  BEGIN(finish_line);
-  return LIST;
+<heading>.* {
+  fwrite (yytext, sizeof(char), yyleng, stdout);
+  printf ("\n");
+  BEGIN (property);
 }
 
-^[0-9]+[).]?" " {/* Numbered List */
-  BEGIN(finish_line);
-  return NUMBERED_LIST;
+<property>[ ]*":PROPERTIES:" { /* Property Drawer */
+  printf ("PRORERTIES\n");
+  BEGIN (properties);
+}
+
+<properties>[ ]*":END:" {
+  printf ("Drawer end\n");
+  BEGIN (INITIAL);
+}
+
+<properties>[ ]*":ID: " { /*UID Property */
+  printf ("UID: ");
+  BEGIN (uid);
+}
+
+<uid>.* {
+  fwrite (yytext, sizeof(char), yyleng, stdout);
+  printf ("\n");
+  BEGIN (properties);
+}
+
+^[ ]*"- " {/* Plain List */
+  printf ("plain list: ");
+  BEGIN (plain_list);
+  //return LIST;
+}
+
+<plain_list>.* {
+  fwrite (yytext, sizeof(char), yyleng, stdout);
+  printf ("\n");
+  BEGIN (INITIAL);
+}
+
+^[ ]*[0-9]+[).]?" " {/* Numbered List */
+  printf ("num list: %d, ", atoi(yytext));
+  BEGIN(num_list);
+  //return NUMBERED_LIST;
+}
+
+<num_list>.* {
+  fwrite (yytext, sizeof(char), yyleng, stdout);
+  printf ("\n");
+  BEGIN (INITIAL);
 }
 
 ^. {/* Start of a plain line */
@@ -54,7 +99,7 @@ extern void yyerror (char const  *);
 
 <finish_line>.* {
   BEGIN(INITIAL);
-  return TEXT;
+  //return TEXT;
 }
 %%
 
