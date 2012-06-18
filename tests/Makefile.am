@@ -1,8 +1,12 @@
 ## Process this file with automake to produce Makefile.in
-TESTS = check_parser
-check_PROGRAMS = check_parser
+TESTS = check_org-merge-driver
+check_PROGRAMS = check_org-merge-driver
 
 ## Check Parser
-check_parser_SOURCES = check_parser.c
-check_parser_CFLAGS = @CHECK_CFLAGS@
-check_parser_LDADD = @CHECK_LIBS@
+check_org_merge_driver_SOURCES = \
+	check_org-merge-driver.c \
+	check_objects.c \
+	check_parser.c
+
+check_org_merge_driver_CFLAGS = @CHECK_CFLAGS@ -I$(top_srcdir)/src 
+check_org_merge_driver_LDADD = @CHECK_LIBS@
