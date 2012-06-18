@@ -1,4 +1,6 @@
 /* Org Mode file lexer -*-c-*- */
+
+
 %{
 /* Org Mode lexer */
 #include <stdio.h>
@@ -11,8 +13,11 @@ int yywrap();
 extern void yyerror (char const  *);
 %}
 
-%option header-file="org_lexer.h"
 
+/* Flex Options */
+/* Generate a reentrant parser */
+%option reentrant
+%option header-file="org_lexer.h"
 /* %option reentrant */
 /* %option bison-bridge */
 /* %option bison-locations */
@@ -21,8 +26,11 @@ extern void yyerror (char const  *);
 /* %option noyywrap */
 /* %option bison-bridge */
 
+
+/* Rule Start Conditions */
 %x finish_line heading plain_list properties uid num_list
 %s property
+
 
 %%
 [\n]*"\n\n\n" { /* New element detection */
