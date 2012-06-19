@@ -14,7 +14,16 @@ autom4te.cache/
 configure.log
 config.*
 stamp-h1
+.deps/
 
 # temporary emacs files
 *~
 #*#
+
+# Lex and bison files
+org_lexer.c
+org_lexer.h
+org_parser.c
+
+# Compiled objects
+*.o
