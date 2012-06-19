@@ -24,6 +24,7 @@ stamp-h1
 org_lexer.c
 org_lexer.h
 org_parser.c
+org_parser.h
 
 # Compiled objects
 *.o
