@@ -5,7 +5,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-  //int yywrap();
+
+int yywrap (yyscan_t yyscanner);
 
 /* extern int yylex (void); */
 extern void yyerror (char const  *);
@@ -15,7 +16,6 @@ extern void yyerror (char const  *);
 /* Flex Options */
 /* Generate a reentrant parser */
 %option reentrant
-/* %option extra-type="struct iconv_extra" */
 %option header-file="org_lexer.h"
 
 
@@ -104,12 +104,9 @@ extern void yyerror (char const  *);
 }
 %%
 
-/*
 int
-yywrap (void)
+yywrap (yyscan_t yyscanner)
 {
   printf ("End of File \n");
   return 1;
 }
-  
-*/
