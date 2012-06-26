@@ -21,7 +21,6 @@ Andrew Young, youngar17 at gmail.com
 *** TODO additional features
 *** TODO finishing touches
 *** TODO documentation and distribution
-
 ** Coding Conventions
 - [[http://www.gnu.org/software/emacs/elisp/html_node/Coding-Conventions.html][elisp conventions]]
 - must sign a [[http://orgmode.org/worg/org-contribute.html][copyright grant]] for the FSF!
@@ -318,6 +317,15 @@ The Lexer is NOT responsible for:
 - The document elements are placed into a tree for processing.
 - Because 
 
+** List of Org Elements
+*** Headings
+Headings level is 
+**** Matching Heading Elements
+- Heading elements may be matched by text if their parents are matched
+  - this allows parents to be matched by UID.
+- Heading elements may be matched to any element with the same UID
+- Heading elements may only match elements of the same type.
+
 ** Modification Guesser?
 1. look for differences in the files
    1. this seems like it might have to be O(n^2)
@@ -333,6 +341,21 @@ The Lexer is NOT responsible for:
   conflict as B is editing a removed heading in A, or should it merge
   with the new subheading under the moved heading in A
 
+* Abstract Syntax Tree Lib
+- Less 
+** Design Goals
+*** Concurrent build / read
+- The library must be able to be built and read simultaneously.
+- Ther
+** Object Orientation
+- The ABSlib will use very simple
+** Parser Interface
+- The ABS is meant to be built using a parser.
+
+** Datastructures
+*** ABS
+The general ABS
+
 * Footnotes and Bibiliography
 -  [[http://git.savannah.gnu.org/gitweb/?p=gnulib.git;a=blob;f=lib/git-merge-changelog.c][git-merge-changelog]]provides a good example on how to write a merge driver
 - [[http://www.hiit.fi/files/fi/fc/papers/doceng04-pc.pdf][Three-way XML Merge]]
@@ -344,3 +367,4 @@ Miller and Eugene W. Myers, 'Software--Practice and Experience'
 Vol. 15 No. 11, 1985, pp. 1025-1040. The algorithm was independently
 discovered as described in "Algorithms for Approximate String
 
+ 
