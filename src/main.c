@@ -44,9 +44,10 @@ main (int argc, char *argv[])
   iconv_t iconv_table = iconv_open ("UTF-8", "UTF-8");
 
 
+  yylex (scanner);
+  yylex_destroy (scanner);
 
-  yylex (&scanner);
-  yylex_destroy (&scanner);
+  /* Free resources */
   iconv_close (&iconv_table);
 
   /* Close yyin */
