@@ -39,17 +39,10 @@ main (int argc, char *argv[])
       yyset_in (stdin, scanner);
     }
 
-  /* Establish source encoding */
-  /* Currently, assume source encoding is utf-8 */
-  iconv_t iconv_table = iconv_open ("UTF-8", "UTF-8");
-
-
   yylex (scanner);
   yylex_destroy (scanner);
 
-  /* Free resources */
-  iconv_close (&iconv_table);
-
   /* Close yyin */
-  fclose (yyget_in(scanner));
+  //fclose (yyget_in(scanner));
+  return 1;
 }
