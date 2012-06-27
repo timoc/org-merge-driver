@@ -1,3 +1,4 @@
+#include <stdlib.h>
 #include <stdio.h>
 #include <ctype.h>
 #include <iconv.h>
@@ -40,9 +41,17 @@ main (int argc, char *argv[])
     }
 
   yylex (scanner);
-  yylex_destroy (scanner);
 
   /* Close yyin */
-  //fclose (yyget_in(scanner));
-  return 1;
+  FILE* file = yyget_in (scanner);
+  if (fileno (file) != fileno (stdin))
+    {
+      fclose (file);
+    }
+
+  /* Destroy scanner */
+  yylex_destroy (scanner);
+ 
+  /* Exit */
+  return EXIT_SUCCESS;
 }
