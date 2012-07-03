@@ -1,6 +1,7 @@
 #+TITLE: Org Merge Driver Implementation Notes
 #+STARTUP: indent
 #+FILETAGS :note:doc:
+#+TODO: AAAA BBBB CCCC
 
 * Project Details
 ** Contact Information
@@ -211,6 +212,7 @@ what if someone is relying on the non-transitive behavior? (i don't know how)
 -
 
 * Org-merge-tool
+
 ** Org-Mode Data Representation
 - Elements below a heading will be considered unordered
 - Numbered list
@@ -277,7 +279,6 @@ what if someone is relying on the non-transitive behavior? (i don't know how)
 - Calculations?  Exist?
 **** Hooks?
   - org-footnote-auto-adjust fixes footnote defintion order
-
 ** Command Line Interface
 The cli will be written using argp and will conform to the gnu
 standards.  Existing mergetool interfaces will be used a basis.
@@ -292,10 +293,12 @@ standards.  Existing mergetool interfaces will be used a basis.
 ** Lexer
 *** Responsibilities
 The Lexer is responsible for:
-- ???
+- Complete Analysis of the input files
+  - There is no longer any parser preforming intermediate analysis.
+  -  
 The Lexer is NOT responsible for:
 - Establishing the file stream.
-
+- There is no longer 
 **** TODO Make explicit the Lexer's responsibilities
 - Especially relating to the parser.
 
@@ -306,17 +309,11 @@ The Lexer is NOT responsible for:
 *** Tokens
 **** 
 
-** Parser
-*** Responsibilities
-
-*** Implementation
-- The parser is implemented with [[http://www.gnu.org/software/bison/][Bison]].
-  - Documentation [[http://www.gnu.org/software/bison/manual/bison.html][here]].
 
 ** Org Elements
-- The document elements are placed into a tree for processing.
-- Because 
+- The document elements are placed into a tree for processing
 
+*** aeuaoeu
 ** List of Org Elements
 *** Headings
 Headings level is 
@@ -367,4 +364,16 @@ Miller and Eugene W. Myers, 'Software--Practice and Experience'
 Vol. 15 No. 11, 1985, pp. 1025-1040. The algorithm was independently
 discovered as described in "Algorithms for Approximate String
 
- 
+* General Algorithm
+- Main calls the parser
+- Lexer reads the file
+  - Matches patterns
+- Sends symbols and data to the parser
+- 
+- 
+- Parser reacts
+  - enum is an index to an array of function pointers
+  - call function corresponding to enum
+    - this is used as an alternative to case statements
+    - case statements might be better optimized
+-
