@@ -25,6 +25,11 @@ org_lexer.c
 org_lexer.h
 org_parser.c
 org_parser.h
+src/lex.yy.c
 
 # Compiled objects
 *.o
+
+# Emacs org-mode files
+doc/ltxpng
+doc/implementation.org_archive
