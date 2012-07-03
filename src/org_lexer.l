@@ -5,12 +5,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-
 int yywrap (yyscan_t yyscanner);
-
-/* extern int yylex (void); */
 extern void yyerror (char const  *);
-
 %}
 
 /* Flex Options */
@@ -18,11 +14,9 @@ extern void yyerror (char const  *);
 %option reentrant
 %option header-file="org_lexer.h"
 
-
 /* Rule Start Conditions */
 %x finish_line heading plain_list properties uid num_list
 %s property
-
 
 %%
 
@@ -102,6 +96,7 @@ extern void yyerror (char const  *);
   BEGIN(INITIAL);
   //return TEXT;
 }
+
 %%
 
 int
