@@ -5,6 +5,7 @@
 #define ORG_ELEMENT
 
 #include <stdbool.h>
+#include <assert.h>
 
 struct org_element;
 
@@ -22,7 +23,13 @@ struct org_element
 };
 
 /**
- * @brief compare two org_elements.
+ * @brief Compare two org_elements.  
+ * @self Compare this element. Uses this elements operations.
+ * @other_erement The element to compare with.
+ *
+ * two org_elements, returning TRUE if they match each other by some
+ * distiguishing factor, false otherwise.  It is okay to compare to
+ * elements with different operations.
  */
 inline bool
 compare_org_element (struct org_element *self, struct org_element *other_element)
@@ -55,19 +62,21 @@ compare_org_element (struct org_element *self, struct org_element *other_element
 
 /**
  * @brief print an org_elment to file.
+ * @parem self The element to print.
+ * @param file The FILE stream to print the element to.
  */
 inline void
 print_org_element (struct org_element *self, FILE file)
 {
-  if (self->operations != NULL && self->operations->print != NULL)
-    {
-      self->operations->print(self, file);
-    }
+  assert (self->operations != NULL && self->operations->print != NULL);
+  self->operations->print(self, file);
 }
 
 /**
  * @brief print a merged org_element with conflict markers.
- * @param local
+ * @param local The locas version of a file.
+ * @param remote The remote version of a file.
+ * @param file The file stream to print to.
  */
 inline void
 print_merge_org_element (struct org_element *local,
