@@ -30,7 +30,7 @@ AC_CONFIG_HEADERS([config.h])
 AC_CONFIG_FILES([
  Makefile
  src/Makefile
- lib/Makefile
+ gnulib/lib/Makefile
  tests/Makefile
 ])
 AC_OUTPUT
