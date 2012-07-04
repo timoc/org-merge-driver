@@ -4,6 +4,6 @@
 #include <check.h>
  
 Suite * make_parser_suite (void);
-Suite * make_object_suite (void);
+Suite * make_list_diff_suite (void);
 
 #endif
