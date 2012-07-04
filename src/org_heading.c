@@ -77,11 +77,7 @@ struct org_heading
 {
   struct org_element org_element;
   int level;
-  char *pre_heading_text;
   char *heading_text;
-  char *post_heading_text;
-  char *body_text;
-  char * uid_string;
 };
 
 
@@ -100,7 +96,8 @@ delete_org_heading (struct org_heading *self)
 }
 
 /* Utility functions */
-bool compare_org_heading (struct org_heading *self,
+bool 
+compare_org_heading (struct org_heading *self,
 			  struct org_heading *other_heading)
 {
   bool status = false;
@@ -111,14 +108,27 @@ bool compare_org_heading (struct org_heading *self,
   return status;
 }
 
-void print_org_heading (struct org_heading *self, FILE *file)
+void 
+print_org_heading (struct org_heading *self, FILE *file)
 {
-  /**
-   * @todo Implement print_org_heading.
-   */
+  /* print leading stars indicating level */
+  int i = 0;
+  int level = get_org_heading_level(self);
+  for (i = 0; i < level; i++)
+    {
+      putc ('*', file);
+    }
+
+  /* print heading text */
+  const char *heading_text = get_org_heading_text(self);
+  fputs (heading_text, file);
+
+  putc ('\n', file);
+  return;
 }
 
-void print_merge_org_heading (struct org_heading *self,
+void 
+print_merge_org_heading (struct org_heading *self,
 			      struct org_heading *other_heading, FILE *file)
 {
   /**
@@ -129,23 +139,27 @@ void print_merge_org_heading (struct org_heading *self,
 
 /* Getters and Setters */
 /* org_heading_level */
-int get_org_heading_level (struct org_heading *self)
+int 
+get_org_heading_level (struct org_heading *self)
 {
   return self->level;
 }
 
-void set_org_heading_level (struct org_heading *self, int level)
+void 
+set_org_heading_level (struct org_heading *self, int level)
 {
   self->level = level;
 }
 
 /* org_heading_text */
-void set_org_heading_text (struct org_heading *self, char *heading_text)
+void 
+set_org_heading_text (struct org_heading *self, char *heading_text)
 {
   self->heading_text = heading_text;
 }
 
-char *get_org_heading_text (struct org_heading *self)
+char *
+get_org_heading_text (struct org_heading *self)
 {
   return self->heading_text;
 }
