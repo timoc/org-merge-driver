@@ -29,6 +29,9 @@ src/lex.yy.c
 
 # Compiled objects
 *.o
+libgnu.a
+org-merge-driver
+check_org-merge-driver
 
 # Emacs org-mode files
 doc/ltxpng
