@@ -18,7 +18,7 @@ stamp-h1
 
 # temporary emacs files
 *~
-#*#
+ #*#
 
 # Lex and bison files
 org_lexer.c
