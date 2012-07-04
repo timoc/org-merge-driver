@@ -20,7 +20,7 @@ struct org_mapping
 /* Gets and Sets */
 
 inline struct org_element *
-get_ancestor_org_mapping (struct mapping *org_mapping)
+get_org_mapping_ancestor (struct mapping *org_mapping)
 {
   return mapping->ancestor;
 }
