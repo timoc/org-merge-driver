@@ -5,5 +5,6 @@
  
 Suite * make_parser_suite (void);
 Suite * make_list_diff_suite (void);
+Suite * make_org_elements_suite (void);
 
 #endif

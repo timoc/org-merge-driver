@@ -83,10 +83,11 @@ struct org_heading
 
 /* Constructor, Destructor */
 struct org_heading *
-init_org_heading ()
+create_org_heading ()
 {
   struct org_heading *new_heading = malloc ( sizeof (struct org_heading));
   new_heading->org_element.operations = &org_heading_operations;
+  return new_heading;
 }
 
 void
