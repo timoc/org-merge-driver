@@ -52,13 +52,13 @@ extern void yyerror (char const  *);
   BEGIN (INITIAL);
 }
 
-<properties>[ ]*":ID: " { /*UID Property */
+<properties>[ ]*":ID " { /*UID Property */
   printf ("UID: ");
   BEGIN (uid);
 }
 
-<uid>.* {
-  fwrite (yytext, sizeof(char), yyleng, stdout);
+<uid>.*":" {
+  fwrite (yytext, sizeof(char), yyleng-1, stdout);
   printf ("\n");
   BEGIN (properties);
 }
