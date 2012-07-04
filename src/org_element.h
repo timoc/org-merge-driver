@@ -12,8 +12,8 @@ struct org_element;
 struct org_element_operations
 {
   void (* print_merge) (struct org_element *local, struct org_element *remote, 
-			FILE file);
-  void (* print) (struct org_element *self, FILE output_file);
+			FILE *file);
+  void (* print) (struct org_element *self, FILE *file);
   bool (* compare) (struct org_element *self, struct org_element *other_element);
 };
 
@@ -36,7 +36,7 @@ compare_org_element (struct org_element *self, struct org_element *other_element
 {
   assert (self->operations != NULL);
   assert (self->operations->compare != NULL);
-  assert (other->operations != NULL);
+  assert (other_element->operations != NULL);
   
   bool status = false;
   /* If two elements share the same set of operations, then they are
@@ -49,7 +49,7 @@ compare_org_element (struct org_element *self, struct org_element *other_element
     {
       /* If the elements are of the same type, compare them by calling the
 	 self org_element's compare implementation on both element. */
-      status =  self->operations->compare(self, other_elt);
+      status =  self->operations->compare(self, other_element);
     }
   else
     {
@@ -66,7 +66,7 @@ compare_org_element (struct org_element *self, struct org_element *other_element
  * @param file The FILE stream to print the element to.
  */
 inline void
-print_org_element (struct org_element *self, FILE file)
+print_org_element (struct org_element *self, FILE *file)
 {
   assert (self->operations != NULL && self->operations->print != NULL);
   self->operations->print(self, file);
@@ -80,10 +80,10 @@ print_org_element (struct org_element *self, FILE file)
  */
 inline void
 print_merge_org_element (struct org_element *local,
-			 struct org_element *remote, FILE file)
+			 struct org_element *remote, FILE *file)
 {
 
-  assert (file != NULL);
+  assert (file != 0);
 
   /* test local and remote org elements for null.
    * If either is null, do a simple print of the non-null element
