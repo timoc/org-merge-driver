@@ -19,7 +19,7 @@ struct org_element_operations
 
 struct org_element
 {
-  struct org_element_operations *operations;
+  const struct org_element_operations *operations;
 };
 
 /**
@@ -112,4 +112,18 @@ print_merge_org_element (struct org_element *local,
       print_org_element (remote, file);
     }
 }
+
+/**
+ * @brief set an org_element's operations table.
+ * @param self The element to assign an org_element_operations to.
+ * @param operatios The operations table to be assigned to self.
+ */
+inline void
+set_org_element_operations (struct org_element *self, 
+			    const struct org_element_operations *operations)
+{
+  self->operations = operations;
+  return;
+}
+
 #endif
