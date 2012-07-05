@@ -1,11 +1,12 @@
 /**
  * @file org_element.h
  */
-#ifndef ORG_ELEMENT
-#define ORG_ELEMENT
+#ifndef ORG_ELEMENT_H
+#define ORG_ELEMENT_H
 
 #include <stdbool.h>
 #include <assert.h>
+#include <stdio.h>
 
 struct org_element;
 
@@ -31,7 +32,7 @@ struct org_element
  * distiguishing factor, false otherwise.  It is okay to compare to
  * elements with different operations.
  */
-inline bool
+static inline bool
 compare_org_element (struct org_element *self, struct org_element *other_element)
 {
   assert (self->operations != NULL);
@@ -65,7 +66,7 @@ compare_org_element (struct org_element *self, struct org_element *other_element
  * @parem self The element to print.
  * @param file The FILE stream to print the element to.
  */
-inline void
+static inline void
 print_org_element (struct org_element *self, FILE *file)
 {
   assert (self->operations != NULL && self->operations->print != NULL);
@@ -78,7 +79,7 @@ print_org_element (struct org_element *self, FILE *file)
  * @param remote The remote version of a file.
  * @param file The file stream to print to.
  */
-inline void
+static inline void
 print_merge_org_element (struct org_element *local,
 			 struct org_element *remote, FILE *file)
 {
@@ -118,7 +119,7 @@ print_merge_org_element (struct org_element *local,
  * @param self The element to assign an org_element_operations to.
  * @param operatios The operations table to be assigned to self.
  */
-inline void
+static inline void
 set_org_element_operations (struct org_element *self, 
 			    const struct org_element_operations *operations)
 {
