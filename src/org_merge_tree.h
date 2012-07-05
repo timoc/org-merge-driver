@@ -25,6 +25,7 @@ struct org_mnode
   enum org_mnode_source source;
   struct org_mapping   *mapping;
 };
+
 /**
  * @brief Create a tree representing a merged tree (with conflicts).
  */

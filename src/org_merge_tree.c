@@ -92,7 +92,8 @@ map_child_org_elements (struct org_mnode *base,
 	  add_sub_dnode (d);
 	}
     }
-*/
+    */
+  return;
 }
 
 static void
