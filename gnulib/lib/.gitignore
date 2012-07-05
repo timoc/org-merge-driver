@@ -1,0 +1,10 @@
+/Makefile.am
+/diffseq.h
+/gl_array_list.c
+/gl_array_list.h
+/gl_list.c
+/gl_list.h
+/minmax.h
+/size_max.h
+/stdbool.in.h
+/xsize.h
