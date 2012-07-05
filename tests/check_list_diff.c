@@ -3,19 +3,24 @@
 #include <check.h>
 #include "gl_array_list.h"
 
-gl_list_t list;
-size_t pos;
+static gl_list_t list;
+static size_t pos;
 
-void
+static void
 test_delete (gl_list_t l, size_t p)
 {
   list = l;
-  pos = p;
+  pos += p;
 }
 
-int test_compare (void* elt1, void *elt2)
+static int one = 1;
+static int two = 2;
+static int three = 3;
+
+static int 
+test_compare (void* elt1, void *elt2)
 {
-  return ((int)elt1 + 2*(int)elt2);
+  return *(int *)elt1 + *(int *)elt2;
 }
 
 START_TEST (wrap_delete_calls_delete_with_listx)
@@ -67,34 +72,105 @@ START_TEST (wrap_insert_calls_delete_with_pos)
 END_TEST
 
 START_TEST (compare_calls_given_elements)
-{
+{  
   struct context ct;
   gl_list_t gl = gl_list_nx_create_empty (GL_ARRAY_LIST, NULL, 
-				       NULL, NULL, true);
-  gl_list_nx_add_last (list, (void*) 1);
-  gl_list_nx_add_last (list, (void*) 2);
+					  NULL, NULL, true);
+  
+  gl_list_nx_add_last (gl, &one);
+  gl_list_nx_add_last (gl, &two);
+  
   ct.compare = test_compare;
   ct.listx = gl;
   ct.listy = gl;
 
-  fail_unless(wrap_compare (&ct, 0, 1) == 5);
+  fail_unless(wrap_compare (&ct, 0, 1) == 3);
 }
 END_TEST
 
-START_TEST (list_diff_check)
+static int 
+int_compare (void* elt1, void *elt2)
 {
-  /*
-gl_list_t l1 =
-void
-list_diff (gl_list_t list0, gl_list_t list1, 
-	   int (*compare) (void *elt1, void *elt2),
-	   void (*note_insert)(gl_list_t list, size_t pos),
-	   void (*note_delete)(gl_list_t list, size_t pos))
-  */
-  fail_if (1 > 2);
+  return (*(int *)elt1) == (*(int *)elt2);
+}
+
+START_TEST (list_diff_remove_check)
+{
+  pos = 0;
+  gl_list_t gl = gl_list_nx_create_empty (GL_ARRAY_LIST, NULL, 
+					  NULL, NULL, true);
+  gl_list_nx_add_last (gl, &one);
+  gl_list_nx_add_last (gl, &two);
+
+  gl_list_t gl2 = gl_list_nx_create_empty (GL_ARRAY_LIST, NULL, 
+					  NULL, NULL, true);
+  gl_list_nx_add_last (gl2, &one);
+  gl_list_nx_add_last (gl2, &two);
+  gl_list_nx_add_last (gl2, &three);
+
+  list_diff (gl2, gl,
+	     int_compare,
+	     test_delete,
+	     test_delete);
+  fail_if (pos != 2);
 }
 END_TEST
 
+START_TEST (list_diff_insert_check)
+{
+  pos = 0;
+  gl_list_t gl = gl_list_nx_create_empty (GL_ARRAY_LIST, NULL, 
+					  NULL, NULL, true);
+  gl_list_nx_add_last (gl, &one);
+  gl_list_nx_add_last (gl, &two);
+
+  gl_list_t gl2 = gl_list_nx_create_empty (GL_ARRAY_LIST, NULL, 
+					  NULL, NULL, true);
+  gl_list_nx_add_last (gl2, &one);
+  gl_list_nx_add_last (gl2, &two);
+  gl_list_nx_add_last (gl2, &three);
+
+  list_diff (gl, gl2,
+	     int_compare,
+	     test_delete,
+	     test_delete);
+  fail_if (pos != 2);
+}
+END_TEST
+
+static void test_insert (gl_list_t l, size_t p)
+{
+  pos -= p;
+  return;
+}
+
+START_TEST (list_diff_insert_and_remove_check)
+{
+  pos = 0;
+  gl_list_t gl = gl_list_nx_create_empty (GL_ARRAY_LIST, NULL, 
+					  NULL, NULL, true);
+  gl_list_nx_add_last (gl, &one);
+  gl_list_nx_add_last (gl, &one);
+ gl_list_nx_add_last (gl, &one);
+  gl_list_nx_add_last (gl, &two);
+  gl_list_nx_add_last (gl, &three);
+
+  gl_list_t gl2 = gl_list_nx_create_empty (GL_ARRAY_LIST, NULL, 
+					   NULL, NULL, true);
+  gl_list_nx_add_last (gl2, &one);
+  gl_list_nx_add_last (gl, &one);
+  gl_list_nx_add_last (gl2, &two);
+  gl_list_nx_add_last (gl2, &three);
+
+
+  list_diff (gl, gl2,
+	     int_compare,
+	     test_insert,
+	     test_delete);
+  printf ("%d", pos);
+  fail_if (pos != -6);
+}
+END_TEST
 
 Suite *
 make_list_diff_suite (void)
@@ -108,7 +184,9 @@ make_list_diff_suite (void)
   tcase_add_test (tc_core, wrap_insert_calls_delete_with_listy);
   tcase_add_test (tc_core, wrap_insert_calls_delete_with_pos);
   tcase_add_test (tc_core, compare_calls_given_elements);
-  tcase_add_test (tc_core, list_diff_check);
+  tcase_add_test (tc_core, list_diff_remove_check);
+  tcase_add_test (tc_core, list_diff_insert_check);
+  tcase_add_test (tc_core, list_diff_insert_and_remove_check);
 
   suite_add_tcase (s, tc_core);
   return s;

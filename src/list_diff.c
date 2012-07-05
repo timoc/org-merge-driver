@@ -47,7 +47,7 @@ list_diff (gl_list_t list0, gl_list_t list1,
 	      gl_list_size (list0),
 	      0,
 	      gl_list_size (list1),
-	      0,
+	      1,
 	      &ct);
   return;
 }
