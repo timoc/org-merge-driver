@@ -3,164 +3,200 @@
  */
 
 #include <stdlib.h>
-#include <stdio.h>
 #include <string.h>
-#include <stdbool.h>
-#include "org_element.h"
+#include <assert.h>
+#include "doc_tree.h"
+#include "doc_tree_map.h"
 #include "org_heading.h"
 
 /* Forward Declarations */
-struct org_heading_operations;
-static bool compare_org_heading_op (struct org_element *self,
-				    struct org_element *other_element);
-static void print_org_heading_op (struct org_element *self, FILE *file);
-static void print_merge_org_heading_op (struct org_element *local, 
-					struct org_element *remote, 
-					FILE *file);
+struct org_heading_ops;
+static void org_heading_print_op (doc_elt *self, doc_stream *out);
+static void org_heading_print_merge_op (doc_elt *local, doc_tree_delta *delta, doc_stream *out);
+static bool org_heading_compare_op (doc_elt *elt_a, doc_elt *elt_b);
 
-/* Implementation of org_element operations */
-
-static const struct org_element_operations org_heading_operations = {
-  .print        = print_org_heading_op,
-  .compare      = compare_org_heading_op,
-  .print_merge  = print_merge_org_heading_op,
+/* Declaration of org_element operations table */
+static struct doc_elt_ops org_heading_ops = {
+  .print        = org_heading_print_op,
+  .print_merge  = org_heading_print_merge_op,
+  .compare      = org_heading_compare_op
 };
 
-/**
- * @brief call compare_org_heading on two org_element.
- */
-static bool
-compare_org_heading_op (struct org_element *self,
-			struct org_element *other_element)
-{
-  assert (self != NULL && other_element != NULL);
-  assert (self->operations == &org_heading_operations);
-  assert (other_element->operations == &org_heading_operations);
-
-  return compare_org_heading ((struct org_heading *)self,
-			      (struct org_heading *)other_element);
-}
+/* org_element operations definitions */
 
 /**
- * @brief call print_org_heading on an org_element.
+ * @brief call org_heading_print on a doc_elt.
  */
 static void
-print_org_heading_op (struct org_element *self, FILE *file)
+org_heading_print_op (doc_elt *self, doc_stream *out)
 {
   assert (self != NULL);
-  assert (self->operations == &org_heading_operations);
-  print_org_heading ((struct org_heading *)self, file);
+  assert (self->ops == &org_heading_ops);
+  org_heading_print ((org_heading *)self, out);
   return;
 }
 
 /**
- * @brief call print_org_heading on two org_element;
+ * @brief call org_heading_print_merge
  */
 static void
-print_merge_org_heading_op (struct org_element *local, 
-			    struct org_element *remote, 
-			    FILE *file)
-{
-  assert (local != NULL);
-  assert (local-> operations == &org_heading_operations);
-  assert (remote->operations == &org_heading_operations);
+org_heading_print_merge_op (doc_elt *self, doc_tree_delta *delta, doc_stream *out)
 
-  print_merge_org_heading ((struct org_heading *) local,
-			   (struct org_heading *) remote, file);
+{
+  assert (self != NULL);
+  assert (delta != NULL);
+  assert ( self->ops == &org_heading_ops);
+  org_heading_print_merge ((org_heading *)self, delta, out);
   return;
 }
 
+static bool
+org_heading_compare_op (doc_elt *elt_a, doc_elt *elt_b)
+{
+  assert (elt_a != NULL && elt_b != NULL);
+  assert (elt_a->ops == &org_heading_ops);
+  assert (elt_b->ops == &org_heading_ops);
+  assert (elt_a->ops == elt_b->ops);
 
-/* Core org_heading implementation */
+  return org_heading_compare ((org_heading *)elt_a, (org_heading *)elt_b);
+}
+
+/* Core org_heading struct */
 
 struct org_heading
 {
-  struct org_element org_element;
+  doc_elt elt;
   int level;
   char *heading_text;
 };
 
 
 /* Constructor, Destructor */
-struct org_heading *
-create_org_heading ()
+org_heading *
+org_heading_create_empty ()
 {
-  struct org_heading *new_heading = malloc ( sizeof (struct org_heading));
-  new_heading->org_element.operations = &org_heading_operations;
-  return new_heading;
+  org_heading *h = malloc (sizeof (org_heading));
+  doc_elt_set_ops(&(h->elt), &org_heading_ops);
+  return h;
 }
 
 void
-delete_org_heading (struct org_heading *self)
+org_heading_free (org_heading *self)
 {
   free (self);
 }
 
 /* Utility functions */
-bool 
-compare_org_heading (struct org_heading *self,
-			  struct org_heading *other_heading)
-{
-  bool status = false;
-  if (strcmp (self->heading_text, other_heading->heading_text))
-    {
-      status = true;
-    }
-  return status;
-}
-
 void 
-print_org_heading (struct org_heading *self, FILE *file)
+org_heading_print (org_heading *self, doc_stream *out)
 {
-  /* print leading stars indicating level */
   int i = 0;
-  int level = get_org_heading_level(self);
+  int level = self->level;
   for (i = 0; i < level; i++)
     {
-      putc ('*', file);
+      doc_stream_putc ('*', out);
     }
-
-  /* print heading text */
-  const char *heading_text = get_org_heading_text(self);
-  fputs (heading_text, file);
-
-  putc ('\n', file);
+  doc_stream_putc (' ', out);
+  doc_stream_puts (self->heading_text, out);
+  doc_stream_putc ('\n', out);
   return;
 }
 
-void 
-print_merge_org_heading (struct org_heading *self,
-			      struct org_heading *other_heading, FILE *file)
+void
+org_heading_print_merge (org_heading *self, doc_tree_delta *delta, doc_stream *out)
 {
-  /**
-   * @todo Implement print_merge_org_heading.
-   */
+  /* */
+  doc_tree_map *map = doc_tree_delta_get_map (delta);
+
+  doc_tree_node *a_node = doc_tree_map_get_ancestor (map);
+  doc_tree_node *l_node = doc_tree_map_get_local    (map);
+  doc_tree_node *r_node = doc_tree_map_get_remote   (map);
+  
+  org_heading *ancestor = (org_heading *)doc_tree_node_get_elt (a_node);
+  org_heading *local =    (org_heading *)doc_tree_node_get_elt (l_node);
+  org_heading *remote =   (org_heading *)doc_tree_node_get_elt (r_node);
+
+  /* Heading Level:
+   * Use self->heading_level to print, regardless of file origin */
+  inline void print_stars (int level, doc_stream *out)
+  {
+    int i = 0;
+    for (i = 0; i < level; i++)
+      {
+	doc_stream_putc ('*', out);
+      }
+    doc_stream_putc (' ', out);
+  }
+
+  /* Heading Text */
+  bool local_text_updated = (0 == strcmp (ancestor->heading_text, local->heading_text));
+  bool remote_text_updated = (0 == strcmp (ancestor->heading_text, remote->heading_text));
+
+  if (local_text_updated && remote_text_updated)
+    {
+      /* conflict */
+      doc_stream_puts (">>>> local\n", out);
+      print_stars (self->level, out);
+      doc_stream_puts (local->heading_text, out);
+      doc_stream_puts ("\n====\n", out);
+      print_stars (self->level, out);
+      doc_stream_puts (remote->heading_text, out);
+      doc_stream_puts ("\n<<<< remote\n", out);
+    }
+  else 
+    {
+      /* only one heading text was updated.  Print it at level self->level */
+      /* Self indicates the node */
+      print_stars (self->level, out);
+
+      if (local_text_updated)
+	{
+	  doc_stream_puts (self->heading_text, out);
+	}
+      else if (remote_text_updated)
+	{
+	  doc_stream_puts (remote->heading_text, out);
+	}
+      else
+	{
+	  doc_stream_puts (self->heading_text, out);
+	}
+
+      doc_stream_putc ('\n', out);
+    }
 }
 
+bool
+org_heading_compare (org_heading *heading_a, org_heading *heading_b)
+{
+  bool a = !(strcmp (heading_a->heading_text, heading_b->heading_text));
+  bool b = (heading_a->level == heading_b->level);
+  return (a && b);
+}
 
 /* Getters and Setters */
-/* org_heading_level */
 int 
-get_org_heading_level (struct org_heading *self)
+org_heading_get_level (org_heading *self)
 {
   return self->level;
 }
 
-void 
-set_org_heading_level (struct org_heading *self, int level)
+void
+org_heading_set_level (org_heading *self, int level)
 {
   self->level = level;
-}
-
-/* org_heading_text */
-void 
-set_org_heading_text (struct org_heading *self, char *heading_text)
-{
-  self->heading_text = heading_text;
+  return;
 }
 
 char *
-get_org_heading_text (struct org_heading *self)
+org_heading_get_text (org_heading *self)
 {
   return self->heading_text;
+}
+
+void
+org_heading_set_text (org_heading *self, char *heading_text)
+{
+  self->heading_text = heading_text;
+  return;
 }

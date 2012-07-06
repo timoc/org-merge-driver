@@ -5,34 +5,29 @@
 #ifndef ORG_HEADING_H
 #define ORG_HEADING_H
 
-#include <stdbool.h>
-#include <stdio.h>
-
+#include "doc_elt.h"
 
 /* org_heading forward declaration */
 struct org_heading;
-
+typedef struct org_heading org_heading;
 
 /* Constructor, Destructor */
-struct org_heading *create_org_heading ();
-void delete_org_heading (struct org_heading *self);
-
+org_heading *org_heading_create_empty ();
+void org_heading_free (org_heading *self);
 
 /* Utility Functions */
-bool compare_org_heading (struct org_heading *self,
-			  struct org_heading *other_heading);
-void print_org_heading (struct org_heading *self, FILE *file);
-void print_merge_org_heading (struct org_heading *self,
-			      struct org_heading *other_heading, FILE *file);
+void org_heading_print (org_heading *self, doc_stream *out);
 
+void org_heading_print_merge (org_heading *self,
+			      doc_tree_delta *delta, doc_stream *out);
+
+bool org_heading_compare (org_heading *heading_a,
+			  org_heading *heading_b);
 
 /* Getters and Setters */
-/* org_heading_level */
-int get_org_heading_level (struct org_heading *self);
-void set_org_heading_level (struct org_heading *self, int level);
-
-/* org_heading_text */
-char *get_org_heading_text (struct org_heading *self);
-void set_org_heading_text (struct org_heading *self, char *heading_text);
+int   org_heading_get_level (org_heading *self);
+void  org_heading_set_level (org_heading *self, int level);
+char *org_heading_get_text (org_heading *self);
+void  org_heading_set_text (org_heading *self, char *heading_text);
 
 #endif
