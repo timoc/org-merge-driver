@@ -1,7 +1,4 @@
 #include <stdbool.h>
-#include "org_element.h"
-#include "org_mapping.h"
-#include "org_merge_tree.h"
 
 /**
  * @brief Add all sub-elements of an inserted node to the merge tree
