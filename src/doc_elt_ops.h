@@ -8,17 +8,14 @@
 #include <stdlib.h>
 #include <stdbool.h>
 #include "doc_stream.h"
+#include "doc_tree_delta.h"
 
 struct doc_elt;
 typedef struct doc_elt doc_elt;
 
-doc_stream;
-
-typedef void (* doc_elt_ops_print)       ( doc_elt *, doc_stream *);
-typedef void (* doc_elt_ops_print_merge) (doc_tree_elt *,
-					  doc_tree_delta *,
-					  doc_stream *);
-typedef bool (* doc_elt_ops_compare)     (doc_elt *, doc_elt *);
+typedef void(* doc_elt_ops_print)( doc_elt *, doc_stream *);
+typedef void(* doc_elt_ops_print_merge)(doc_elt *, doc_tree_delta *, doc_stream *);
+typedef bool(* doc_elt_ops_compare)(doc_elt *, doc_elt *);
 
 typedef struct doc_elt_ops
 {

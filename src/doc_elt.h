@@ -9,6 +9,8 @@
 #include <stdbool.h>
 #include "doc_elt_ops.h"
 #include "doc_stream.h"
+#include "doc_tree.h"
+#include "doc_tree_delta.h"
 
 typedef struct doc_elt
 {
@@ -57,7 +59,7 @@ doc_elt_print (doc_elt *elt, doc_stream *out)
  * @param file The file stream to print to.
  */
 static inline void
-doc_elt_print_merge (doc_tree_elt *elt, doc_tree_delta *delta, doc_stream *out)
+doc_elt_print_merge (doc_elt *elt, doc_tree_delta *delta, doc_stream *out)
 {
   doc_elt_ops_get_print_merge (doc_elt_get_ops (elt))(elt, delta, out);
 }
@@ -71,15 +73,16 @@ doc_elt_print_merge (doc_tree_elt *elt, doc_tree_delta *delta, doc_stream *out)
  * distiguishing factor, false otherwise.  It is okay to compare to
  * elements with different operations.
  */
-static inline bool *
+static inline bool
 doc_elt_compare (doc_elt *elt_a, doc_elt *elt_b)
 {
   bool status = false;
   doc_elt_ops *ops = doc_elt_get_ops (elt_a);
-  if (ops == doc_elt_get_ops (elt_b));
-  {
-    status = doc_elt_ops_get_compare (ops)(elt);
-  }
+  if (ops == doc_elt_get_ops (elt_b))
+    {
+      status = doc_elt_ops_get_compare (ops)(elt_a, elt_b);
+    }
+  return status;
 }
 
 #endif

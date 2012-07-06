@@ -6,6 +6,7 @@
 #define DOC_TREE_H
 
 #include <stdlib.h>
+#include "gl_list.h"
 
 typedef struct doc_tree_node doc_tree_node;
 typedef doc_tree_node doc_tree;
@@ -42,7 +43,7 @@ doc_tree_node_get_elt (doc_tree_node *node)
 static inline void
 doc_tree_node_set_elt (doc_tree_node *node, void *elt)
 {
-  doc_node->elt = elt;
+  node->elt = elt;
   return;
 }
 
@@ -66,7 +67,7 @@ doc_tree_node_get_children (doc_tree_node *node)
 }
 
 static inline void
-doc_tree_node_set_children (doc_tree_node *node, gl_list_t children)
+doc_tree_node_set_children (doc_tree_node *node, gl_list_t *children)
 {
   node->children = children;
 }
