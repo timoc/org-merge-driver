@@ -7,8 +7,12 @@
 
 #include <stdlib.h>
 
+struct doc_tree_map;
+typedef struct doc_tree_map doc_tree_map;
+
 typedef enum doc_tree_delta_type 
-  { 
+  {
+    doc_tree_node_no_change,
     doc_tree_node_update,
     doc_tree_node_delete,
     doc_tree_node_add,
@@ -19,7 +23,7 @@ typedef enum doc_tree_delta_src
   {
     doc_tree_delta_local_src,
     doc_tree_delta_remote_src,
-    doc_tree_delta_ancestor_src;
+    doc_tree_delta_ancestor_src
   } doc_tree_delta_src;
 
 typedef struct doc_tree_delta
@@ -76,14 +80,14 @@ doc_tree_delta_create (doc_tree_delta_type type, doc_tree_delta_src src)
   return d;
 }
 
-static inline doc_tree_delta_src
+static inline doc_tree_map *
 doc_tree_delta_get_map (doc_tree_delta *delta)
 {
   return delta->map;
 }
 
 static inline void
-doc_tree_delta_set_map (doc_tree_delta *delta, doc_tree_delta_map map)
+doc_tree_delta_set_map (doc_tree_delta *delta, doc_tree_map *map)
 {
   delta->map = map;
   return;

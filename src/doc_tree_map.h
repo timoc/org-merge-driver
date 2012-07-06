@@ -7,6 +7,9 @@
 
 #include <stdlib.h>
 
+struct doc_tree_delta;
+typedef struct doc_tree_delta doc_tree_delta;
+
 struct doc_tree_node;
 typedef struct doc_tree_node doc_tree_node;
 
@@ -22,26 +25,26 @@ typedef struct doc_tree_map
 typedef enum doc_tree_src
   {
     ancestor_src = offsetof (doc_tree_map, ancestor),
-    local_src    = offsetof (doc_tree_map, local), 
+    local_src    = offsetof (doc_tree_map, local),
     remote_src   = offsetof (doc_tree_map, remote)
   } doc_tree_src;
 
-doc_tree_node *
+static inline doc_tree_node *
 doc_tree_map_get_node (doc_tree_map *map, doc_tree_src src)
 {
   char *c = (char *)map;
   return (doc_tree_node *) (c + src);
 }
 
-doc_tree_delta *
+static inline doc_tree_delta *
 doc_tree_map_get_delta (doc_tree_map *map, doc_tree_src src)
 {
   if (src == local_src)
     return map->local_delta;
-  else if (src == remote_delta)
+  else if (src == remote_src)
     return map->remote_delta;
   // fail if anything else
-  assert(0);x
+  assert(0);
   return NULL;
 }
 inline static doc_tree_map *
@@ -96,27 +99,27 @@ doc_tree_map_set_remote (doc_tree_map *map, doc_tree_node *remote)
   return;
 }
 
-inline static doc_tree_node *
-doc_tree_delta_get_local (doc_tree_map *map)
+inline static doc_tree_delta *
+doc_tree_delta_get_local_delta (doc_tree_map *map)
 {
   return map->local_delta;
 }
 
 inline static void
-doc_tree_map_set_local (doc_tree_map *map, doc_tree_delta *local)
+doc_tree_map_set_local_delta (doc_tree_map *map, doc_tree_delta *local)
 {
-  map->delta = local;
+  map->local_delta = local;
   return;
 }
 
-inline static doc_tree_node *
-doc_tree_delta_get_remote (doc_tree_map *map)
+inline static doc_tree_delta *
+doc_tree_delta_get_remote_delta (doc_tree_map *map)
 {
   return map->remote_delta;
 }
 
 inline static void
-doc_tree_map_set_remote (doc_tree_map *map, doc_tree_delta *remote)
+doc_tree_map_set_remote_delta (doc_tree_map *map, doc_tree_delta *remote)
 {
   map->remote_delta = remote;
   return;
