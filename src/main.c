@@ -1,32 +1,54 @@
 #include <stdio.h>
 #include <ctype.h>
-/*
-#include "Parser.h"
-#include "Lexer.h"
-*/
-#include "org_parser.h"
+#include <iconv.h>
 #include "org_lexer.h"
 
-char *progname;
-//double yylval;
-
-main( argc, argv )
-char *argv[];
+int
+main (int argc, char *argv[])
 {
-  progname = argv[0];
+  /* Process command line arguments */
+
+  char *progname = argv[0];
+
+
+  /* Initialize flex data structures */
+  yyscan_t scanner;
+  int err = 0;
+  err = yylex_init (&scanner);
+  if (err == ENOMEM) 
+    {
+      /* Memory allocation error.
+       * Abort execution. */
+    }
+  else if (err == EINVAL)
+    {
+      /* Invalid yylex_init argument 
+       * Abort execution. */
+    }
+
+  /* If a file path was passed, open that file and utilize it as the
+     flex source */
   if (argc > 1)
     {
-      yyin = fopen (argv[1], "r");
+      yyset_in (fopen (argv[1], "r"), scanner);
     }
-  if (yyin == 0)
-    yyin = stdin;
-  //yylex();
 
-  yyparse();
-}
+  /* If no file path is passed, use stdin as flex source */
+  if (yyget_in (scanner) == NULL)
+    {
+      yyset_in (stdin, scanner);
+    }
 
-yyerror( s )
-char *s;
-{
-  fprintf( stderr ,"%s: %s\n" , progname , s );
+  /* Establish source encoding */
+  /* Currently, assume source encoding is utf-8 */
+  iconv_t iconv_table = iconv_open ("UTF-8", "UTF-8");
+
+
+
+  yylex (&scanner);
+  yylex_destroy (&scanner);
+  iconv_close (&iconv_table);
+
+  /* Close yyin */
+  fclose (yyget_in(scanner));
 }

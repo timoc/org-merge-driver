@@ -11,6 +11,11 @@ AC_PROG_CC   # c compiler
 gl_EARLY     # gnu lib
 AM_PROG_CC_C_O
 AM_PROG_LEX  # flex
+if test "x$LEX" != xflex; then
+  AC_MSG_WARN([To generate the lexer, Flex is required.  Lexer will not be regenerated.])
+  AC_SUBST([LEX],[:])
+fi
+
 AC_PROG_YACC # bison
 
 # gnulib macros

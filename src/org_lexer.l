@@ -1,30 +1,22 @@
 /* Org Mode file lexer -*-c-*- */
 
-
 %{
 /* Org Mode lexer */
 #include <stdio.h>
 #include <stdlib.h>
-#include "org_parser.h"
 
-int yywrap();
+  //int yywrap();
 
 /* extern int yylex (void); */
 extern void yyerror (char const  *);
-%}
 
+%}
 
 /* Flex Options */
 /* Generate a reentrant parser */
 %option reentrant
+/* %option extra-type="struct iconv_extra" */
 %option header-file="org_lexer.h"
-/* %option reentrant */
-/* %option bison-bridge */
-/* %option bison-locations */
-/* %option yylineno */
-/* %option warn nodefault */
-/* %option noyywrap */
-/* %option bison-bridge */
 
 
 /* Rule Start Conditions */
@@ -33,6 +25,7 @@ extern void yyerror (char const  *);
 
 
 %%
+
 [\n]*"\n\n\n" { /* New element detection */
    printf ( "element break; %d\n", yyleng);
    //return NEW_ELEMENT;
@@ -111,9 +104,12 @@ extern void yyerror (char const  *);
 }
 %%
 
+/*
 int
 yywrap (void)
 {
   printf ("End of File \n");
   return 1;
 }
+  
+*/
