@@ -6,24 +6,38 @@
 #define LTREE_H
 
 #include <stdlib.h>
+#include "config.h"
+#include "gl_array_list.h"
 #include "gl_list.h"
 
 struct ltree_node;
 typedef struct ltree_node ltree_node;
-typedef ltree ltree_node;
+typedef ltree_node ltree;
 typedef gl_list_t ltree_list;
 
-typedef struct doc_tree_node
+typedef struct ltree_node
 {
   void *data;
-  doc_tree_node *parent;
-  ltree_list *children;
-} doc_tree_node;
+  ltree_node *parent;
+  ltree_list children;
+} ltree_node;
 
-static inline doc_tree_node *
+static inline void
+ltree_node_set_children (ltree_node *node, ltree_list children);
+
+static inline ltree_node *
 ltree_node_create_empty ()
 {
-  return malloc (sizeof (ltree_node));
+  ltree_node *l = malloc (sizeof (ltree_node));
+  ltree_node_set_children (l, gl_list_nx_create_empty (GL_ARRAY_LIST, NULL, 
+						       NULL, NULL, true));
+  return l;
+}
+
+static inline ltree_node *
+ltree_node_create ()
+{
+  return  malloc (sizeof (ltree_node));
 }
 
 static inline void
@@ -46,7 +60,7 @@ ltree_node_set_data (ltree_node *node, void *data)
 }
 
 static inline ltree_node *
-ltree_node_set_parent (ltree_node *node)
+ltree_node_get_parent (ltree_node *node)
 {
   return node->parent;
 }
