@@ -10,7 +10,7 @@
 #include "doc_elt_ops.h"
 #include "doc_stream.h"
 #include "doc_tree.h"
-#include "doc_tree_delta.h"
+#include "merge_delta.h"
 
 typedef struct doc_elt
 {
@@ -47,9 +47,9 @@ doc_elt_get_ops (doc_elt *elt)
  * @param file The FILE stream to print the element to.
  */
 static inline void
-doc_elt_print (doc_elt *elt, doc_stream *out)
+doc_elt_print (doc_elt *elt, void * context, doc_stream *out)
 {
-  doc_elt_ops_get_print (doc_elt_get_ops (elt))(elt, out);
+  doc_elt_ops_get_print (doc_elt_get_ops (elt))(elt, context, out);
 }
 
 /**
@@ -59,9 +59,9 @@ doc_elt_print (doc_elt *elt, doc_stream *out)
  * @param file The file stream to print to.
  */
 static inline void
-doc_elt_print_merge (doc_elt *elt, doc_tree_delta *delta, doc_stream *out)
+doc_elt_print_merge (doc_elt *elt, merge_delta *delta, void * context, doc_stream *out)
 {
-  doc_elt_ops_get_print_merge (doc_elt_get_ops (elt))(elt, delta, out);
+  doc_elt_ops_get_print_merge (doc_elt_get_ops (elt))(elt, delta, context, out);
 }
 
 /**
@@ -74,13 +74,13 @@ doc_elt_print_merge (doc_elt *elt, doc_tree_delta *delta, doc_stream *out)
  * elements with different operations.
  */
 static inline bool
-doc_elt_compare (doc_elt *elt_a, doc_elt *elt_b)
+doc_elt_compare (doc_elt *elt_a, doc_elt *elt_b, void *context)
 {
   bool status = false;
   doc_elt_ops *ops = doc_elt_get_ops (elt_a);
   if (ops == doc_elt_get_ops (elt_b))
     {
-      status = doc_elt_ops_get_compare (ops)(elt_a, elt_b);
+      status = doc_elt_ops_get_compare (ops)(elt_a, elt_b, context);
     }
   return status;
 }
