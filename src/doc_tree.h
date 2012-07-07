@@ -15,7 +15,7 @@ typedef struct doc_tree_node
 {
   void *elt;
   struct doc_tree_node *parent;
-  gl_list_t *children;
+  gl_list_t children;
 } doc_tree_node;
 
 static inline doc_tree_node *
@@ -60,14 +60,14 @@ doc_tree_node_set_parent (doc_tree_node *node, doc_tree_node *parent)
   return;
 }
 
-static inline gl_list_t *
+static inline gl_list_t
 doc_tree_node_get_children (doc_tree_node *node)
 {
   return node->children;
 }
 
 static inline void
-doc_tree_node_set_children (doc_tree_node *node, gl_list_t *children)
+doc_tree_node_set_children (doc_tree_node *node, gl_list_t children)
 {
   node->children = children;
 }
