@@ -6,47 +6,70 @@
 #define MERGE_MAP_H
 
 #include <stdlib.h>
+#include "merge_change.h"
 
 struct merge_delta;
 typedef struct merge_delta merge_delta;
 
-struct doc_node;
-typedef struct doc_node doc_node;
-
+/**
+ * A common identity between 3 merge_delta objects.
+ */
 typedef struct merge_map
 {
-  doc_node *ancestor;
-  doc_node *local;
-  doc_node *remote;
-  merge_delta *local_delta;
-  merge_delta *remote_delta;
+  merge_delta_change ancestor;
+  merge_delta_change local;
+  merge_delta_change remote;
 } merge_map;
 
-typedef enum merge_src
+/**
+ * Indicates an input document (ancestor, local, or source). Used to
+ * indicate the document from which a doc_* or merge_* object
+ * originates.
+ */
+typedef enum doc_src
   {
-    ancestor_src = offsetof (merge_map, ancestor),
-    local_src    = offsetof (merge_map, local),
-    remote_src   = offsetof (merge_map, remote)
-  } merge_src;
+    src_ancestor = offsetof (merge_map, ancestor),
+    src_local    = offsetof (merge_map, local),
+    src_remote   = offsetof (merge_map, remote)
+  } doc_src;
 
-static inline doc_node *
-merge_map_get_node (merge_map *map, merge_src src)
+static inline merge_delta_change *
+merge_map_get_delta_change (merge_map *map, doc_src src)
 {
   char *c = (char *)map;
-  return (doc_node *) (c + src);
+  return (merge_delta_change *)(c + src);
+}
+
+static inline void
+merge_map_set_delta (merge_map *map, doc_src src, merge_delta *delta)
+{
+  char *c = (char * )map;
+  merge_map_get_delta_change(map, src)->delta = delta;
+  return;
 }
 
 static inline merge_delta *
-merge_map_get_delta (merge_map *map, merge_src src)
+merge_map_get_delta (merge_map *map, doc_src src)
 {
-  if (src == local_src)
-    return map->local_delta;
-  else if (src == remote_src)
-    return map->remote_delta;
-  // fail if anything else
-  assert(0);
-  return NULL;
+  char *c = (char *)map;
+  return ((merge_delta_change *)(c + src))->delta;
 }
+
+static inline void
+merge_map_set_change (merge_map *map, doc_src src, merge_change change)
+{
+  char *c = (char *)map;
+  ((merge_delta_change *)(c + src))->change = change;
+  return;
+}
+
+static inline merge_change
+merge_map_get_change (merge_map *map, doc_src src)
+{
+  char *c = (char *)map;
+  return ((merge_delta_change *)(c + src))->change;
+}
+
 inline static merge_map *
 merge_map_create_empty ()
 {
@@ -57,71 +80,6 @@ inline static void
 merge_map_free (merge_map *map)
 {
   free (map);
-  return;
-}
-
-inline static doc_node *
-merge_map_get_ancestor (merge_map *map)
-{
-  return map->ancestor;
-}
-
-inline static void
-merge_map_set_ancestor (merge_map *map, doc_node *ancestor)
-{
-  map->ancestor = ancestor;
-  return;
-}
-
-inline static doc_node *
-merge_map_get_local (merge_map *map)
-{
-  return map->local;
-}
-
-inline static void
-merge_map_set_local (merge_map *map, doc_node *local)
-{
-  map->local = local;
-  return;
-}
-
-inline static doc_node *
-merge_map_get_remote (merge_map *map)
-{
-  return map->remote;
-}
-
-inline static void
-merge_map_set_remote (merge_map *map, doc_node *remote)
-{
-  map->remote = remote;
-  return;
-}
-
-inline static merge_delta *
-merge_delta_get_local_delta (merge_map *map)
-{
-  return map->local_delta;
-}
-
-inline static void
-merge_map_set_local_delta (merge_map *map, merge_delta *local)
-{
-  map->local_delta = local;
-  return;
-}
-
-inline static merge_delta *
-merge_map_get_remote_delta (merge_map *map)
-{
-  return map->remote_delta;
-}
-
-inline static void
-merge_map_set_remote_delta (merge_map *map, merge_delta *remote)
-{
-  map->remote_delta = remote;
   return;
 }
 
