@@ -52,7 +52,7 @@ create_merge_tree (doc_tree *ancestor, doc_tree *local, doc_tree *remote)
   doc_tree_merge (merge_root, ancestor, src_ancestor);
   doc_tree_merge (merge_root, local, src_local);
   doc_tree_merge (merge_root, remote, src_remote);
- 
+
   return ((merge_tree *) merge_root);
 }
 
@@ -117,7 +117,7 @@ doc_tree_merge (merge_tree *mtree_root, doc_tree *dtree_root, doc_src src)
       dtree_deltas[i].src  = src;
       dtree_deltas[i].elt  = ltree_node_get_data (((ltree_node *) gl_list_get_at 
 						   (dtree_children, i)));
-      dtree_deltas[i].type = matched;
+      dtree_deltas[i].type = unchanged;
     }
 
   /* 
@@ -149,6 +149,7 @@ doc_tree_merge (merge_tree *mtree_root, doc_tree *dtree_root, doc_src src)
 	      dtree_child_count,     /* dtree_children index upper bound */
 	      1,                     /* find optimal solution            */
 	      &ctxt);                /* difseq context created above     */
+
   /*
    * Create the mappings and update the merge_tree.
    */
@@ -168,15 +169,14 @@ doc_tree_merge (merge_tree *mtree_root, doc_tree *dtree_root, doc_src src)
   merge_map * new_map;
 
   while ((mtree_index != mtree_child_count) 
-	 && (dtree_index != dtree_child_count))
+	 || (dtree_index != dtree_child_count))
     {
       while (dtree_index != dtree_child_count
-	     && dtree_deltas[dtree_index].type != unchanged)
+	     && dtree_deltas[dtree_index].type == change_insert)
 	{
-	  merge_node *m_child = (merge_node *)gl_list_get_at (mtree_children, mtree_index);
-	  merge_delta *m_delta = ltree_node_get_data (m_child);
+
 	  merge_delta *d_delta = &(dtree_deltas[dtree_index]);
-	  merge_map *map =  merge_delta_get_map (m_delta);
+	  d_delta->type = unchanged;
 
 	  /* a dtree's delta must be inserted into the mtree_children list here
 	   *
@@ -185,7 +185,7 @@ doc_tree_merge (merge_tree *mtree_root, doc_tree *dtree_root, doc_src src)
 	   * 3. Mark the mapping as 'inserted' by the document being merged 
 	   * 4. Insert the delta into the merge tree 
 	   * 5. Increment dtree_index, mtree_child_count
-	   -    - increment mtree_index also, to move past newly inserted node.
+	   *    - increment mtree_index also, to move past newly inserted node.
 	   * 6. add the node's children to the list as 'inserted'
 	   *    - the unmatched node's children are also unmatched
 	   */
@@ -194,21 +194,25 @@ doc_tree_merge (merge_tree *mtree_root, doc_tree *dtree_root, doc_src src)
 	  merge_map_set_delta (new_map, src, &dtree_deltas[dtree_index]);
 	  merge_map_set_change (new_map, src, change_insert);
 	  merge_delta_set_map (&dtree_deltas[dtree_index], new_map);
+
 	  /* add the delta to the merge_tree */
 	  merge_node *new_node = ltree_node_create_empty ();
 	  ltree_node_set_data (new_node, &dtree_deltas[dtree_index]);
 	  gl_list_nx_add_at (mtree_children, mtree_index, new_node);
+
+	  /* Add all the children as inserted */
+	  insert_children (new_node, (merge_tree *) gl_list_get_at (dtree_children, dtree_index), src);
+
 	  /* Advance the mtree_index and child_count */
 	  mtree_index++;
 	  mtree_child_count++;
 	  dtree_index++;
-	  /* Add all the children as inserted */
-	  insert_children (m_child, (merge_tree *)gl_list_get_at (dtree_children, dtree_index), src);
+
 	}
       while (mtree_index != mtree_child_count
 	     && ((merge_delta *) ltree_node_get_data 
 		 ((merge_node *) gl_list_get_at (mtree_children, mtree_index))
-		 )->type != unchanged)
+		 )->type == change_remove)
 	{
 	  merge_node *m_child = (merge_node *)gl_list_get_at (mtree_children, mtree_index);
 	  merge_delta *m_delta = ltree_node_get_data (m_child);
@@ -216,16 +220,17 @@ doc_tree_merge (merge_tree *mtree_root, doc_tree *dtree_root, doc_src src)
 	  merge_map *map =  merge_delta_get_map (m_delta);
 
 	  /* 1. Mark the mtree node's delta as unmatched by the new document
-	   * 2. Mark all of thi children as having not existed in thil file
+	   * 2. Mark all of thi children as having not existed in this file
 	   * 3. Increment the mtree_index and move on.
 	   */
+	  m_delta->type = unchanged;
 	  merge_map_set_delta (map, src, NULL);
 	  merge_map_set_change (map, change_remove, src);
 	  mtree_index++;
 	  mark_remove_children (m_child, src);
 	}
 
-      if ((mtree_index != mtree_child_count)  && (dtree_index != dtree_child_count))
+      if ((mtree_index != mtree_child_count) && (dtree_index != dtree_child_count))
 	{
 	  merge_node *m_child = (merge_node *)gl_list_get_at (mtree_children, mtree_index);
 	  merge_delta *m_delta = ltree_node_get_data (m_child);
@@ -239,6 +244,8 @@ doc_tree_merge (merge_tree *mtree_root, doc_tree *dtree_root, doc_src src)
 	  merge_map *map =  merge_delta_get_map (m_delta);
 	  merge_map_set_delta (map, src, d_delta);
 	  doc_tree_merge (m_child, (merge_tree *)gl_list_get_at (dtree_children, dtree_index), src);
+	  mtree_index++;
+	  dtree_index++;
 	}
     }
   free (mem);
@@ -283,5 +290,5 @@ int compare (struct context *ctxt, OFFSET xoff, OFFSET yoff)
 {
   merge_delta *m_d =  (ltree_node_get_data ((merge_node *)gl_list_get_at (ctxt->m_delta, xoff)));
   merge_delta d_d = (ctxt->d_delta[yoff]);
-  return doc_elt_compare (d_d.elt, m_d->elt, NULL);
+  return doc_elt_compare (d_d.elt, d_d.src, m_d->elt, m_d->src, NULL);
 }

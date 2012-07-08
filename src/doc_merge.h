@@ -9,7 +9,6 @@
 /**
  * @brief Create a tree representing a merged tree (with conflicts).
  */
-merge_tree * 
-create_merge_tree (doc_tree *ancestor, doc_tree *local, doc_tree *remote);
+merge_tree * create_merge_tree (doc_tree *ancestor, doc_tree *local, doc_tree *remote);
 
 #endif
