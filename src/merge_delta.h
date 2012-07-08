@@ -26,7 +26,9 @@ typedef struct merge_delta
 static inline merge_delta *
 merge_delta_create_empty ()
 {
-  return malloc (sizeof (merge_delta));
+  merge_delta *md = malloc (sizeof (merge_delta));
+  md->type = unchanged; 
+  return md;
 }
 
 static inline void
