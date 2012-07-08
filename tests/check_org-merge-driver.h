@@ -6,5 +6,5 @@
 Suite * make_parser_suite (void);
 Suite * make_list_diff_suite (void);
 Suite * make_org_elements_suite (void);
-suite *make_doc_merge_suite (void);
+Suite *make_doc_merge_suite (void);
 #endif
