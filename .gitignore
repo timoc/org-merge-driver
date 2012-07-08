@@ -23,8 +23,6 @@ stamp-h1
 # Lex and bison files
 org_lexer.c
 org_lexer.h
-org_parser.c
-org_parser.h
 src/lex.yy.c
 
 # Compiled objects
