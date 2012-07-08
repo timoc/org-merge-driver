@@ -22,28 +22,16 @@ typedef struct ltree_node
   ltree_list children;
 } ltree_node;
 
-static inline void
-ltree_node_set_children (ltree_node *node, ltree_list children);
-
-static inline ltree_node *
-ltree_node_create_empty ()
+static inline ltree_list
+ltree_node_get_children (ltree_node *node)
 {
-  ltree_node *l = malloc (sizeof (ltree_node));
-  ltree_node_set_children (l, gl_list_nx_create_empty (GL_ARRAY_LIST, NULL, 
-						       NULL, NULL, true));
-  return l;
-}
-
-static inline ltree_node *
-ltree_node_create ()
-{
-  return  malloc (sizeof (ltree_node));
+  return node->children;
 }
 
 static inline void
-ltree_node_free (ltree_node *node)
+ltree_node_set_children (ltree_node *node, ltree_list children)
 {
-  free (node);
+  node->children = children;
 }
 
 static inline void *
@@ -72,16 +60,25 @@ ltree_node_set_parent (ltree_node *node, ltree_node *parent)
   return;
 }
 
-static inline ltree_list
-ltree_node_get_children (ltree_node *node)
+static inline ltree_node *
+ltree_node_create_empty ()
 {
-  return node->children;
+  ltree_node *l = malloc (sizeof (ltree_node));
+  ltree_node_set_children (l, gl_list_nx_create_empty (GL_ARRAY_LIST, NULL, 
+						       NULL, NULL, true));
+  return l;
+}
+
+static inline ltree_node *
+ltree_node_create ()
+{
+  return  malloc (sizeof (ltree_node));
 }
 
 static inline void
-ltree_node_set_children (ltree_node *node, ltree_list children)
+ltree_node_free (ltree_node *node)
 {
-  node->children = children;
+  free (node);
 }
 
 #endif

@@ -9,8 +9,8 @@
 #include "merge_map.h"
 #include "merge_change.h"
 
-struct merge_map;
-typedef struct merge_map merge_map;
+//struct merge_map;
+//typedef struct merge_map merge_map;
 
 struct doc_elt;
 typedef struct doc_elt doc_elt;

@@ -1,5 +1,5 @@
-#ifndef MERGE_CHANGE
-#define MERGE_CHANGE
+#ifndef MERGE_CHANGE_H
+#define MERGE_CHANGE_H
 
 struct merge_delta;
 typedef struct merge_delta merge_delta;
