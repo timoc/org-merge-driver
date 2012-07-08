@@ -6,6 +6,8 @@
 #define MERGE_MAP_H
 
 #include <stdlib.h>
+#include <stddef.h>
+
 #include "merge_change.h"
 
 struct merge_delta;
@@ -28,9 +30,9 @@ typedef struct merge_map
  */
 typedef enum doc_src
   {
-    src_ancestor = offsetof (merge_map, ancestor),
-    src_local    = offsetof (merge_map, local),
-    src_remote   = offsetof (merge_map, remote)
+    src_ancestor = (offsetof (struct merge_map, ancestor)),
+    src_local    = (offsetof (struct merge_map, local)),
+    src_remote   = (offsetof (struct merge_map, remote))
   } doc_src;
 
 static inline merge_delta_change *
