@@ -1,106 +1,287 @@
 #include <stdbool.h>
+#include <stdlib.h>
+#include <assert.h>
+#include "doc_tree.h"
+#include "merge_map.h"
+#include "merge_delta.h"
+#include "doc_elt.h"
+#include "merge_tree.h"
+#include "merge_change.h"
+
+/* for diifseq */
+#include "config.h"
+#include <limits.h>
+#include <stdbool.h>
+#include "minmax.h"
+
+#include "doc_merge.h"
 
 /**
- * @brief Add all sub-elements of an inserted node to the merge tree
- */
-static void insert_node (struct org_mnode *root, enum org_mapping_offset other);
-
-/**
- * @brief Remove all sub-elements of removed node to the merge tree
- */
-static void remove_node (struct org_mnode *root, enum org_mapping_offset ancestor);
-
-static struct org_mnode*
-create_org_mnode()
-{
-  return malloc (sizeof(struct org_mnode));
-}
-
-/**
- * @brief create the mapping of the sub elements of two matched nodes
+ * @brief Merge a doc_tree into a merge tree, using rules created in the doc_elts
  */
 static void
-map_child_org_elements (struct org_mnode *base, 
-			enum org_mapping_offset ancestor, 
-			enum org_mapping_offset other);
+doc_tree_merge (merge_tree *mtree, doc_tree *dtree, doc_src src);
 
-org_mtree *
-create_org_mtree (struct org_element *ancestor,
-		  struct org_element *local, 
-		  struct org_element *remote)
+/**
+ * @brief will mark all of the children nodes in the merge tree as removed for the src
+ */
+static void
+mark_remove_children  (merge_tree *mtree, doc_src src);
+
+/**
+ * @brief Insert all the children of dtree into an empty mtree
+ */
+static void
+insert_children  (merge_tree *mtree, doc_tree *dtree, doc_src src);
+
+merge_tree *
+create_merge_tree (doc_tree *ancestor, doc_tree *local, doc_tree *remote)
 {
-  /* Create a root node to store the root of the document */
-  struct org_mnode *root = create_org_mnode();
-  set_org_mnode_source  (root, both_files);
+  /* create a root node for the merge tree */
+  merge_tree *merge_root = ltree_node_create_empty ();
+  merge_delta *root_delta = merge_delta_create_empty ();
+  ltree_node_set_data (merge_root, (void *) merge_root);
 
-  /* Point the root mnode to a mapping of all three roots */
-  struct org_mapping *mapping = create_org_mapping();  
-  set_org_mnode_mapping (root, mapping);
+  /**
+   * @TODO: set the delta to point to this map
+   * @TODO: set the map to point back to the delta for all three elements
+   */
+  //merge_map *root_map = merge_map_create_empty ();
 
-  /* Map the root of each document to each other; a set of mapped
-   * elements all share a single dnode in the delta tree */
-  set_org_mapping_ancestor (mapping, ancestor);
-  set_org_mapping_local    (mapping, local);
-  set_org_mapping_remote   (mapping, remote);
-
-  /* call the mapping algorithm twice, so it gets all changes from
-   * both files */
-  map_child_org_elements (root, org_mapping_ancestor, org_mapping_local);
-  map_child_org_elements (root, org_mapping_ancestor, org_mapping_remote);
-
-  /* Return the delta_tree, which can then be merge printed */
-  return (org_mtree*) root;
+  /* merge all three trees onto tho root of the merge_tree */
+  doc_tree_merge (merge_root, ancestor, src_ancestor);
+  doc_tree_merge (merge_root, local, src_local);
+  doc_tree_merge (merge_root, remote, src_remote);
+ 
+  return ((merge_tree *) merge_root);
 }
 
-static void
-map_child_org_elements (struct org_mnode *base, 
-			enum org_mapping_offset ancestor, 
-			enum org_mapping_offset other)
-{
-  /* Find the nodes which were inserted and deleted */
-  //diff_list(base[base_offset].sub_elements, base[other_offset]);
+struct context;
 
-  /* assume that the previous function told each sub_element if it
-     were inserted or removed.  For each sub element we must now create a
-     dnode for it in the merge if it was added, deleted, or unchanged,
-     and add it to a sub list */
-  /* we cannot assume that the list of dnodes is empty, since this
-     function willbe called on two pairs of files was added */
-  /* Create an iterator for each list.  For the base list, if a node
-     was deleted, we add all elements to the delta tree as deleted
-     elements.  For the other list, if an element was inserted, we
-     call insert for all of its sub elements. */
-  /* since we can't assume that the sub dnodes don't exist, we have to
-     check to make sure that the base element does not already have a
-     mapping */
+#define OFFSET int
+#undef USE_HEURISTIC
+#undef ELEMENT
+#undef EQUAL
+
+static void note_delete (struct context *ctxt, OFFSET xoff);
+static void note_insert (struct context *ctxt, OFFSET yoff);
+static int compare (struct context *ctxt, OFFSET xoff, OFFSET yoff);
+
+#define EXTRA_CONTEXT_FIELDS			\
+  gl_list_t m_delta;				\
+  merge_delta * d_delta;
+
+#define NOTE_DELETE(ctxt, xoff) note_delete (ctxt, xoff)
+#define NOTE_INSERT(ctxt, yoff) note_insert (ctxt, yoff)
+#define XVECREF_YVECREF_EQUAL(ctxt, xoff, yoff) compare (ctxt, xoff, yoff)
+
+#include "diffseq.h"
+#define OFFSET int
+
+static void
+doc_tree_merge (merge_tree *mtree_root, doc_tree *dtree_root, doc_src src)
+{
+  /*
+   * How this function works:
+   * 1. create a new merge_delta for every doc_node in the doc_tree
+   *    - merge_deltas are created as an array.
+   * 2. assume that the merge_tree deltas are already set 'matched'
+   * 3. run cmpseq on the two lists
+   * 3.1 every time an element is inserted or deleted, it will be noted in its delta
+   * 4. use the 'edits' stored in the deltas to create a mappings
+   * 4.1. reset the value of all delta mappings to matched simultaneusly
+   * 4.2 store in the mapping the result of the merge in the mapping
+   * 4.3 store inserted element deltas in the list at the point where they were inserted
+   */
 
   /*
-  bool quit = false;
-  org_element *e1 = base;
-  while (!quit)
+   * Establish basic facts about each list 
+   */
+  ltree_list mtree_children = ltree_node_get_children (mtree_root);
+  size_t mtree_child_count = gl_list_size (mtree_children);
+
+  ltree_list dtree_children = ltree_node_get_children (dtree_root);
+  size_t dtree_child_count = gl_list_size (dtree_children);
+
+  /*
+   * Create a delta for every child of the doc_tree.
+   */
+
+  /* allocate the deltas in an array */
+  merge_delta *dtree_deltas = calloc (dtree_child_count, sizeof (merge_delta));
+
+  /*  Initialize the deltas */
+  size_t i;
+  for (i = 0; i < dtree_child_count; i++)
     {
-      e1 from base[base_offset].sub_elements;
-      e2 from base[other_offset].sub_elements;
-      if (e2.status == INSERT)
+      dtree_deltas[i].src  = src;
+      dtree_deltas[i].elt  = ltree_node_get_data (((ltree_node *) gl_list_get_at 
+						   (dtree_children, i)));
+      dtree_deltas[i].type = matched;
+    }
+
+  /* 
+   * Send the delta lists through compareseq.
+   * 
+   * compareseq will leave add/remove notes in the deltas. Notes are
+   * left in the deltas as a convenience.
+   */
+
+  /* prepare the compareseq context */
+  struct context ctxt;
+
+  /* Add the caller data */
+  ctxt.d_delta = dtree_deltas;
+  ctxt.m_delta = mtree_children;
+
+  /* Allocate data for the algorithm */
+  size_t diags = mtree_child_count + dtree_child_count + 3;
+  void *mem    = malloc (diags * (2 * sizeof (OFFSET)));
+  ctxt.fdiag   = mem;
+  ctxt.bdiag   = ctxt.fdiag + diags;
+  ctxt.fdiag  += dtree_child_count + 1;
+  ctxt.bdiag   = ctxt.fdiag + diags;
+
+  /* run a diffseq on the elements */
+  compareseq (0,                     /* mtree_children index lower bound */
+	      mtree_child_count,     /* mtree_children index upper bound */
+	      0,                     /* dtree_children index lower bound */
+	      dtree_child_count,     /* dtree_children index upper bound */
+	      1,                     /* find optimal solution            */
+	      &ctxt);                /* difseq context created above     */
+  /*
+   * Create the mappings and update the merge_tree.
+   */
+
+  /* go through the list in the end and 
+   * - when there is a 'matched' nodes
+   *   - delete the matched elements delta, mark a 'change' in the mapping, 
+   *   - point the mapping to the element
+   * - when there is an insert:
+   *   - add the dnode at that point
+   *  - when there is a delete:
+   *    - mark it in the mapping
+   */
+
+  int mtree_index = 0; /* # of checked elt's in *tree list */
+  int dtree_index = 0;
+  merge_map * new_map;
+
+  while ((mtree_index != mtree_child_count) 
+	 && (dtree_index != dtree_child_count))
+    {
+      while (dtree_index != dtree_child_count
+	     && dtree_deltas[dtree_index].type != unchanged)
 	{
-	  /* an element from the other list has been added
-	  struct dnode *d = create_dnode();
-	  d = e2;
-	  add_sub_dnode (d);
+	  merge_node *m_child = (merge_node *)gl_list_get_at (mtree_children, mtree_index);
+	  merge_delta *m_delta = ltree_node_get_data (m_child);
+	  merge_delta *d_delta = &(dtree_deltas[dtree_index]);
+	  merge_map *map =  merge_delta_get_map (m_delta);
+
+	  /* a dtree's delta must be inserted into the mtree_children list here
+	   *
+	   * 1. create a mapping 
+	   * 2. Add the delta to the mapping 
+	   * 3. Mark the mapping as 'inserted' by the document being merged 
+	   * 4. Insert the delta into the merge tree 
+	   * 5. Increment dtree_index, mtree_child_count
+	   -    - increment mtree_index also, to move past newly inserted node.
+	   * 6. add the node's children to the list as 'inserted'
+	   *    - the unmatched node's children are also unmatched
+	   */
+	  /* create the mapping */
+	  new_map = merge_map_create_empty ();
+	  merge_map_set_delta (new_map, src, &dtree_deltas[dtree_index]);
+	  merge_map_set_change (new_map, src, change_insert);
+	  merge_delta_set_map (&dtree_deltas[dtree_index], new_map);
+	  /* add the delta to the merge_tree */
+	  merge_node *new_node = ltree_node_create_empty ();
+	  ltree_node_set_data (new_node, &dtree_deltas[dtree_index]);
+	  gl_list_nx_add_at (mtree_children, mtree_index, new_node);
+	  /* Advance the mtree_index and child_count */
+	  mtree_index++;
+	  mtree_child_count++;
+	  dtree_index++;
+	  /* Add all the children as inserted */
+	  insert_children (m_child, (merge_tree *)gl_list_get_at (dtree_children, dtree_index), src);
+	}
+      while (mtree_index != mtree_child_count
+	     && ((merge_delta *) ltree_node_get_data 
+		 ((merge_node *) gl_list_get_at (mtree_children, mtree_index))
+		 )->type != unchanged)
+	{
+	  merge_node *m_child = (merge_node *)gl_list_get_at (mtree_children, mtree_index);
+	  merge_delta *m_delta = ltree_node_get_data (m_child);
+	  merge_delta *d_delta = &(dtree_deltas[dtree_index]);
+	  merge_map *map =  merge_delta_get_map (m_delta);
+
+	  /* 1. Mark the mtree node's delta as unmatched by the new document
+	   * 2. Mark all of thi children as having not existed in thil file
+	   * 3. Increment the mtree_index and move on.
+	   */
+	  merge_map_set_delta (map, src, NULL);
+	  merge_map_set_change (map, change_remove, src);
+	  mtree_index++;
+	  mark_remove_children (m_child, src);
+	}
+
+      if ((mtree_index != mtree_child_count)  && (dtree_index != dtree_child_count))
+	{
+	  merge_node *m_child = (merge_node *)gl_list_get_at (mtree_children, mtree_index);
+	  merge_delta *m_delta = ltree_node_get_data (m_child);
+	  merge_delta *d_delta = &(dtree_deltas[dtree_index]);
+
+	  assert ((d_delta->type == unchanged) && (m_delta->type == unchanged));
+
+	  /* 1. Add the dtree_delta to the mtree_delta's mapping, since they must match
+	   * 2. Recurse matching function, using newly matched nodes as root nodes.
+	   */
+	  merge_map *map =  merge_delta_get_map (m_delta);
+	  merge_map_set_delta (map, src, d_delta);
+	  doc_tree_merge (m_child, (merge_tree *)gl_list_get_at (dtree_children, dtree_index), src);
 	}
     }
-    */
+  free (mem);
   return;
 }
 
 static void
-insert_node (struct org_mnode *root, enum org_mapping_offset other)
+mark_remove_children  (merge_tree *mtree, doc_src src)
 {
-  return;
+ /**
+   * @todo: fix the quick cheese */
+  // recursively mark all children nodes as removed
+  doc_tree_merge (mtree, ltree_node_create_empty(), src);
 }
 
 static void
-remove_node (struct org_mnode *root, enum org_mapping_offset ancestor)
+insert_children  (merge_tree *mtree, doc_tree *dtree, doc_src src)
 {
+  /**
+   * @todo: fix the quick cheese */
+  doc_tree_merge (mtree, dtree, src);
+}
+
+static
+void note_delete (struct context *ctxt, OFFSET xoff)
+{
+  // make a note in the map that the element did not exist in this file
+  merge_delta *m_d =  (ltree_node_get_data ((merge_node *)gl_list_get_at (ctxt->m_delta, xoff)));
+  m_d->type = change_remove;
   return;
+}
+
+static
+void note_insert (struct context *ctxt, OFFSET yoff)
+{
+  ctxt->d_delta[yoff].type = change_insert;
+  return;
+}
+
+static
+int compare (struct context *ctxt, OFFSET xoff, OFFSET yoff)
+{
+  merge_delta *m_d =  (ltree_node_get_data ((merge_node *)gl_list_get_at (ctxt->m_delta, xoff)));
+  merge_delta d_d = (ctxt->d_delta[yoff]);
+  return doc_elt_compare (d_d.elt, m_d->elt, NULL);
 }
