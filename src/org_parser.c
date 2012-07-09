@@ -115,10 +115,6 @@ rec_parse_heading(yyscan_t scanner, doc_node *this, int this_level)
 	  tok = yylex (scanner);
 	  elt = yyget_extra (scanner);
 	}
-      else
-	{
-	  assert(0);
-	}
 
       if (tok == QUIT || elt == NULL)
 	{
