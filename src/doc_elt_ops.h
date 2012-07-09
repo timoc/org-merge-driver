@@ -9,12 +9,13 @@
 #include <stdbool.h>
 #include "doc_stream.h"
 #include "merge_delta.h"
+#include "merge_print_ctxt.h"
 
 struct doc_elt;
 typedef struct doc_elt doc_elt;
 
 typedef void(* doc_elt_ops_print)( doc_elt *, void *, doc_stream *);
-typedef void(* doc_elt_ops_merge_print)(merge_delta *, void *, doc_stream *);
+typedef void(* doc_elt_ops_merge_print)(merge_delta *, merge_print_ctxt *, doc_stream *);
 typedef bool(* doc_elt_ops_compare)(doc_elt *, doc_src, doc_elt *, doc_src, void *);
 
 typedef struct doc_elt_ops

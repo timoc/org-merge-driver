@@ -48,6 +48,7 @@ doc_elt_get_ops (doc_elt *elt)
 static inline void
 doc_elt_print (doc_elt *elt, void * context, doc_stream *out)
 {
+  /* printf ("  c_anc=%i c_loc=%i c_rem=%i\n", c_anc, c_loc, c_rem); */
   doc_elt_ops_get_print (doc_elt_get_ops (elt))(elt, context, out);
 }
 
@@ -66,12 +67,12 @@ doc_elt_merge_print (doc_elt *elt, merge_delta *delta, void * context, doc_strea
 /**
  * @brief Compare two org_elements.
  * @self Compare this element. Uses this elements operations.
- * @other_erement The element to compare with.
+ * @other_element The element to compare with.
  *
  * two org_elements, returning TRUE if they match each other by some
  * distiguishing factor, false otherwise.  It is okay to compare two
- * elements with different operations; they can never be equal and
- * doc_elt_compare will always return false.
+ * elements with different operations; they can never be considered
+ * equal and doc_elt_compare will always return false.
  */
 static inline bool
 doc_elt_compare (doc_elt *elt_a, doc_src s1, doc_elt *elt_b, doc_src s2, void *context)
