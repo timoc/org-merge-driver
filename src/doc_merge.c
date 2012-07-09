@@ -1,6 +1,7 @@
 #include <stdbool.h>
 #include <stdlib.h>
 #include <assert.h>
+
 #include "doc_tree.h"
 #include "merge_map.h"
 #include "merge_delta.h"
@@ -8,7 +9,7 @@
 #include "merge_tree.h"
 #include "merge_change.h"
 
-/* for diifseq */
+/* for difseq */
 #include "config.h"
 #include <limits.h>
 #include <stdbool.h>
@@ -40,7 +41,7 @@ create_merge_tree (doc_tree *ancestor, doc_tree *local, doc_tree *remote)
   /* create a root node for the merge tree */
   merge_tree *merge_root = ltree_node_create_empty ();
   merge_delta *root_delta = merge_delta_create_empty ();
-  ltree_node_set_data (merge_root, (void *) merge_root);
+  merge_node_set_delta (merge_root, root_delta);
 
   /**
    * @TODO: set the delta to point to this map
@@ -192,7 +193,7 @@ doc_tree_merge (merge_tree *mtree_root, doc_tree *dtree_root, doc_src src)
 	  /* create the mapping */
 	  new_map = merge_map_create_empty ();
 	  merge_map_set_delta (new_map, src, &dtree_deltas[dtree_index]);
-	  merge_map_set_change (new_map, src, change_insert);
+	  merge_map_set_change (new_map, src, mapped);
 	  merge_delta_set_map (&dtree_deltas[dtree_index], new_map);
 
 	  /* add the delta to the merge_tree */
@@ -225,7 +226,7 @@ doc_tree_merge (merge_tree *mtree_root, doc_tree *dtree_root, doc_src src)
 	   */
 	  m_delta->type = unchanged;
 	  merge_map_set_delta (map, src, NULL);
-	  merge_map_set_change (map, change_remove, src);
+	  merge_map_set_change (map, src, unmapped);
 	  mtree_index++;
 	  mark_remove_children (m_child, src);
 	}
@@ -243,6 +244,7 @@ doc_tree_merge (merge_tree *mtree_root, doc_tree *dtree_root, doc_src src)
 	   */
 	  merge_map *map =  merge_delta_get_map (m_delta);
 	  merge_map_set_delta (map, src, d_delta);
+	  merge_map_set_change (map, src, mapped);
 	  doc_tree_merge (m_child, (merge_tree *)gl_list_get_at (dtree_children, dtree_index), src);
 	  mtree_index++;
 	  dtree_index++;
@@ -256,7 +258,7 @@ static void
 mark_remove_children  (merge_tree *mtree, doc_src src)
 {
  /**
-   * @todo: fix the quick cheese */
+  * @todo: fix the quick cheese */
   // recursively mark all children nodes as removed
   doc_tree_merge (mtree, ltree_node_create_empty(), src);
 }
@@ -272,7 +274,6 @@ insert_children  (merge_tree *mtree, doc_tree *dtree, doc_src src)
 static
 void note_delete (struct context *ctxt, OFFSET xoff)
 {
-  // make a note in the map that the element did not exist in this file
   merge_delta *m_d =  (ltree_node_get_data ((merge_node *)gl_list_get_at (ctxt->m_delta, xoff)));
   m_d->type = change_remove;
   return;
@@ -288,7 +289,10 @@ void note_insert (struct context *ctxt, OFFSET yoff)
 static
 int compare (struct context *ctxt, OFFSET xoff, OFFSET yoff)
 {
-  merge_delta *m_d =  (ltree_node_get_data ((merge_node *)gl_list_get_at (ctxt->m_delta, xoff)));
-  merge_delta d_d = (ctxt->d_delta[yoff]);
+  gl_list_t list = ctxt->m_delta;
+  merge_node *m_n = (merge_node *)gl_list_get_at (list, xoff);
+  merge_delta *m_d = merge_node_get_delta (m_n);
+  merge_delta d_d = ctxt->d_delta[yoff];
+
   return doc_elt_compare (d_d.elt, d_d.src, m_d->elt, m_d->src, NULL);
 }
