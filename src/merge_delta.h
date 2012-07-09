@@ -9,9 +9,6 @@
 #include "merge_map.h"
 #include "merge_change.h"
 
-//struct merge_map;
-//typedef struct merge_map merge_map;
-
 struct doc_elt;
 typedef struct doc_elt doc_elt;
 
@@ -27,6 +24,9 @@ static inline merge_delta *
 merge_delta_create_empty ()
 {
   merge_delta *md = malloc (sizeof (merge_delta));
+  md->elt = NULL;
+  md->map = NULL;
+  md->src = 0;
   md->type = unchanged; 
   return md;
 }
@@ -54,6 +54,26 @@ static inline doc_elt *
 merge_delta_get_elt (merge_delta *delta)
 {
   return delta->elt;
+}
+
+static inline void
+merge_delta_set_elt (merge_delta *delta, doc_elt *elt)
+{
+  delta->elt = elt;
+  return;
+}
+
+static inline doc_src
+merge_delta_get_doc_src (merge_delta *delta)
+{
+  return delta->src;
+}
+
+static inline void
+merge_delta_set_doc_src (merge_delta *delta, doc_src src)
+{
+  delta->src = src;
+  return;
 }
 
 #endif
