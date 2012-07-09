@@ -1,10 +1,7 @@
-<<<<<<< yours: t1-1.org
-=======
 * heading 2
 - new text under heading 2
 - this will conflict since heading 2
   deleted in file 1
->>>>>>> theirs: t1-2.org
 * heading 3
 ** heading 4
 ** test heading
@@ -12,7 +9,17 @@
 :ID: 100
 :END:
 - updated line in file 2
+this is some more text
+
+
+
+aoeuaoeua
+aoeuaeou
 * heading 1
 ** test heading
-- this is a different heading
-- this line added in file 2
+ooeueou
+aoeuaeou
+*** aoetnh
+- andrew
+aeou
+

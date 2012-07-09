@@ -1,15 +1,8 @@
-- this is going to be a test
 * Heading 1
-- this is such a test
 * Heading 2
-- we are testing this
 *** Heading 3
-- I'm wondering what this will do
-
 * Heading 4
-- testing this is so much fun 
 ** Heading 5
 *** Heading 6
 *** Heading 7
 ** Heading 8
-- some text
