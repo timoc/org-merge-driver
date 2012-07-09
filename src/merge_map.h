@@ -75,7 +75,18 @@ merge_map_get_change (merge_map *map, doc_src src)
 inline static merge_map *
 merge_map_create_empty ()
 {
-  return malloc (sizeof (merge_map));
+  merge_map *map =  malloc (sizeof (merge_map));
+
+  merge_map_set_change (map, src_ancestor, unmapped);
+  merge_map_set_delta (map, src_ancestor, NULL);
+
+  merge_map_set_change (map, src_local, unmapped);
+  merge_map_set_delta (map, src_local, NULL);
+
+  merge_map_set_change (map, src_remote, unmapped);
+  merge_map_set_delta (map, src_remote, NULL);
+
+  return map;
 }
 
 inline static void
