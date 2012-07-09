@@ -1,7 +1,6 @@
 #+TITLE: Org Merge Driver Implementation Notes
-#+STARTUP: indent
+#+STARTUP:
 #+FILETAGS :note:doc:
-#+TODO: AAAA BBBB CCCC
 
 * Project Details
 ** Contact Information
@@ -338,21 +337,6 @@ Headings level is
   conflict as B is editing a removed heading in A, or should it merge
   with the new subheading under the moved heading in A
 
-* Abstract Syntax Tree Lib
-- Less 
-** Design Goals
-*** Concurrent build / read
-- The library must be able to be built and read simultaneously.
-- Ther
-** Object Orientation
-- The ABSlib will use very simple
-** Parser Interface
-- The ABS is meant to be built using a parser.
-
-** Datastructures
-*** ABS
-The general ABS
-
 * Footnotes and Bibiliography
 -  [[http://git.savannah.gnu.org/gitweb/?p=gnulib.git;a=blob;f=lib/git-merge-changelog.c][git-merge-changelog]]provides a good example on how to write a merge driver
 - [[http://www.hiit.fi/files/fi/fc/papers/doceng04-pc.pdf][Three-way XML Merge]]
@@ -365,15 +349,3 @@ Vol. 15 No. 11, 1985, pp. 1025-1040. The algorithm was independently
 discovered as described in "Algorithms for Approximate String
 
 * General Algorithm
-- Main calls the parser
-- Lexer reads the file
-  - Matches patterns
-- Sends symbols and data to the parser
-- 
-- 
-- Parser reacts
-  - enum is an index to an array of function pointers
-  - call function corresponding to enum
-    - this is used as an alternative to case statements
-    - case statements might be better optimized
--
