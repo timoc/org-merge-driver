@@ -69,6 +69,21 @@ ltree_node_create_empty ()
   return l;
 }
 
+static inline ltree_node*
+ltree_node_get_child_at (ltree_node *node, int index)
+{
+  gl_list_t list = ltree_node_get_children (node);
+  return (ltree_node *)gl_list_get_at (list, index);
+}
+
+static inline void
+ltree_node_add_child_last (ltree_node *node, void*e)
+{
+  gl_list_t list = ltree_node_get_children (node);
+  gl_list_nx_add_last (list, (void*) e);
+  return;
+}
+
 static inline ltree_node *
 ltree_node_create ()
 {

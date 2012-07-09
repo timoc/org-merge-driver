@@ -49,4 +49,23 @@ doc_node_set_children (doc_node *node, doc_list *children)
   return;
 }
 
+static inline doc_node *
+doc_node_create_empty ()
+{
+  return ltree_node_create_empty ();
+}
+
+static inline void
+doc_node_add_child_last (doc_node *node, doc_node *e)
+{
+  ltree_node_add_child_last (node, (void *) e);
+  return;
+}
+
+static inline void
+doc_node_free (doc_node *node)
+{  
+  return;
+}
+
 #endif

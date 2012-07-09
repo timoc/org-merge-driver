@@ -2,7 +2,7 @@
  * @file merge_tree.h 
  *
  * A wrapper to ltree, used to represent a merge tree.  A merge tree
- * is an ltree that stores only merge_delta as data.
+ * is an ordered tree that stores only merge_delta's as data.
  */
 
 #ifndef MERGE_TREE_H
@@ -52,6 +52,30 @@ static inline void
 merge_node_set_children (merge_node *node, merge_list children)
 {
   ltree_node_set_children ((ltree_node *)node, (ltree_list)children);
+  return;
+}
+
+static inline merge_node *
+merge_node_create_empty ()
+{
+  return ltree_node_create_empty ();
+}
+
+static inline void
+merge_node_add_child_last (merge_node *node, merge_node *child)
+{
+  ltree_node_add_child_last (node, (void *) child);
+}
+
+static inline merge_node *
+merge_node_get_child_at (merge_node *node, int index)
+{
+  return ltree_node_get_child_at (node, index);
+}
+
+static inline void
+merge_node_free (merge_node *node)
+{
   return;
 }
 
