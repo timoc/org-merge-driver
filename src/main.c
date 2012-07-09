@@ -2,56 +2,67 @@
 #include <stdio.h>
 #include <ctype.h>
 #include <iconv.h>
-#include "org_lexer.h"
+
+#include "doc_stream.h"
+#include "org_parser.h"
+#include "merge_tree.h"
+#include "doc_tree.h"
+#include "merge_print.h"
+#include "doc_merge.h"
+#include "merge_print_ctxt.h"
 
 int
 main (int argc, char *argv[])
 {
   /* Process command line arguments */
-
   char *progname = argv[0];
+  FILE * out = NULL;
 
-
-  /* Initialize flex data structures */
-  yyscan_t scanner;
-  int err = 0;
-  err = yylex_init (&scanner);
-  if (err == ENOMEM) 
+  if (argc < 4)
     {
-      /* Memory allocation error.
-       * Abort execution. */
+      printf ("%s: missing operands", argv[0]);
     }
-  else if (err == EINVAL)
+  if (argc == 5)
     {
-      /* Invalid yylex_init argument 
-       * Abort execution. */
+      out =  fopen ( argv[4], "w");
+    }
+  if (out == NULL)
+    {
+      out = stdout;
     }
 
-  /* If a file path was passed, open that file and utilize it as the
-     flex source */
-  if (argc > 1)
+  FILE *anc_file = fopen ( argv[1], "r");
+  if (anc_file != NULL)
     {
-      yyset_in (fopen (argv[1], "r"), scanner);
+      FILE *loc_file = fopen (argv[2], "r");
+      if (loc_file != NULL)
+	{
+	  FILE *rem_file = fopen (argv[3], "r");
+	  if (rem_file != NULL)
+	    {
+	      doc_tree *anc_dtree = org_parse_file_stream (anc_file);
+	      doc_tree *loc_dtree = org_parse_file_stream (loc_file);
+	      doc_tree *rem_dtree = org_parse_file_stream (rem_file);
+
+	      merge_tree *mtree = create_merge_tree(anc_dtree, loc_dtree, rem_dtree);
+
+	      merge_print_ctxt mp_ctxt;
+	      mp_ctxt.depth = 0;
+	      merge_print (mtree, &mp_ctxt, out);
+
+	      fclose (rem_file);
+	    }
+	  fclose (loc_file);
+	}
+      fclose(anc_file);
     }
 
-  /* If no file path is passed, use stdin as flex source */
-  if (yyget_in (scanner) == NULL)
+
+  if (out != stdout && out != NULL)
     {
-      yyset_in (stdin, scanner);
+      fclose (out);
     }
 
-  yylex (scanner);
-
-  /* Close yyin */
-  FILE* file = yyget_in (scanner);
-  if (fileno (file) != fileno (stdin))
-    {
-      fclose (file);
-    }
-
-  /* Destroy scanner */
-  yylex_destroy (scanner);
- 
   /* Exit */
   return EXIT_SUCCESS;
 }
