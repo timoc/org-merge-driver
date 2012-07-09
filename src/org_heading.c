@@ -5,61 +5,32 @@
 #include <stdlib.h>
 #include <string.h>
 #include <assert.h>
+
+#include "merge_map.h"
 #include "doc_tree.h"
-#include "doc_tree_map.h"
+#include "merge_tree.h"
+#include "doc_elt.h"
+#include "doc_elt_ops.h"
 #include "org_heading.h"
+#include "merge_print_ctxt.h"
 
 /* Forward Declarations */
 struct org_heading_ops;
-static void org_heading_print_op (doc_elt *self, doc_stream *out);
-static void org_heading_print_merge_op (doc_elt *local, doc_tree_delta *delta, doc_stream *out);
-static bool org_heading_compare_op (doc_elt *elt_a, doc_elt *elt_b);
+
+static void org_heading_print_op (doc_elt *self, void *context, doc_stream *out);
+
+static void org_heading_merge_print_op (merge_delta *delta, merge_print_ctxt *ctxt, 
+					doc_stream *out);
+
+static bool org_heading_compare_op (doc_elt *local, doc_src sl, doc_elt *remote, 
+				    doc_src s2, void *context);
 
 /* Declaration of org_element operations table */
 static struct doc_elt_ops org_heading_ops = {
-  .print        = org_heading_print_op,
-  .print_merge  = org_heading_print_merge_op,
-  .compare      = org_heading_compare_op
+  .print        = &org_heading_print_op,
+  .merge_print  = &org_heading_merge_print_op,
+  .compare      = &org_heading_compare_op
 };
-
-/* org_element operations definitions */
-
-/**
- * @brief call org_heading_print on a doc_elt.
- */
-static void
-org_heading_print_op (doc_elt *self, doc_stream *out)
-{
-  assert (self != NULL);
-  assert (self->ops == &org_heading_ops);
-  org_heading_print ((org_heading *)self, out);
-  return;
-}
-
-/**
- * @brief call org_heading_print_merge
- */
-static void
-org_heading_print_merge_op (doc_elt *self, doc_tree_delta *delta, doc_stream *out)
-
-{
-  assert (self != NULL);
-  assert (delta != NULL);
-  assert ( self->ops == &org_heading_ops);
-  org_heading_print_merge ((org_heading *)self, delta, out);
-  return;
-}
-
-static bool
-org_heading_compare_op (doc_elt *elt_a, doc_elt *elt_b)
-{
-  assert (elt_a != NULL && elt_b != NULL);
-  assert (elt_a->ops == &org_heading_ops);
-  assert (elt_b->ops == &org_heading_ops);
-  assert (elt_a->ops == elt_b->ops);
-
-  return org_heading_compare ((org_heading *)elt_a, (org_heading *)elt_b);
-}
 
 /* Core org_heading struct */
 
@@ -70,13 +41,13 @@ struct org_heading
   char *heading_text;
 };
 
-
 /* Constructor, Destructor */
 org_heading *
 org_heading_create_empty ()
 {
   org_heading *h = malloc (sizeof (org_heading));
-  doc_elt_set_ops(&(h->elt), &org_heading_ops);
+  h->heading_text = NULL;
+  doc_elt_set_ops (&(h->elt), &org_heading_ops);
   return h;
 }
 
@@ -86,92 +57,160 @@ org_heading_free (org_heading *self)
   free (self);
 }
 
-/* Utility functions */
-void 
-org_heading_print (org_heading *self, doc_stream *out)
+/* doc_elt interface */
+static void 
+org_heading_print_op (doc_elt *elt, void *ctxt, doc_stream *out)
 {
   int i = 0;
+  org_heading * self = (org_heading *) elt;
   int level = self->level;
+  // print the stars
   for (i = 0; i < level; i++)
     {
       doc_stream_putc ('*', out);
     }
+  // assume that if there was a heading, there was a space
   doc_stream_putc (' ', out);
-  doc_stream_puts (self->heading_text, out);
-  doc_stream_putc ('\n', out);
+  // print the text
+  if (self->heading_text != NULL)
+    {
+      doc_stream_puts (self->heading_text, out);
+    }
   return;
 }
 
-void
-org_heading_print_merge (org_heading *self, doc_tree_delta *delta, doc_stream *out)
+static void
+org_heading_merge_print_op (merge_delta *delta, merge_print_ctxt *ctxt, doc_stream *out)
 {
-  /* */
-  doc_tree_map *map = doc_tree_delta_get_map (delta);
+  assert (delta != NULL);
+  doc_src src = merge_delta_get_doc_src (delta);
+  merge_map *map = merge_delta_get_map (delta);
+  assert (map != NULL);
 
-  doc_tree_node *a_node = doc_tree_map_get_ancestor (map);
-  doc_tree_node *l_node = doc_tree_map_get_local    (map);
-  doc_tree_node *r_node = doc_tree_map_get_remote   (map);
-  
-  org_heading *ancestor = (org_heading *)doc_tree_node_get_elt (a_node);
-  org_heading *local =    (org_heading *)doc_tree_node_get_elt (l_node);
-  org_heading *remote =   (org_heading *)doc_tree_node_get_elt (r_node);
+  merge_change c_anc, c_loc, c_rem;
+  c_anc = merge_map_get_change (map, src_ancestor);
+  c_loc = merge_map_get_change (map, src_local);
+  c_rem = merge_map_get_change (map, src_remote);
 
-  /* Heading Level:
-   * Use self->heading_level to print, regardless of file origin */
-  inline void print_stars (int level, doc_stream *out)
+  assert (c_anc == mapped || c_anc == unmapped);
+  assert (c_loc == mapped || c_loc == unmapped);
+  assert (c_rem == mapped || c_rem == unmapped);
+
+  merge_delta *d_anc, *d_loc, *d_rem;
+  org_heading *anc, *loc, *rem;
+
+  bool is_updated (org_heading *new, org_heading *old)
   {
-    int i = 0;
-    for (i = 0; i < level; i++)
-      {
-	doc_stream_putc ('*', out);
-      }
-    doc_stream_putc (' ', out);
+    return (0 != strcmp (new->heading_text, old->heading_text));
   }
 
-  /* Heading Text */
-  bool local_text_updated = (0 == strcmp (ancestor->heading_text, local->heading_text));
-  bool remote_text_updated = (0 == strcmp (ancestor->heading_text, remote->heading_text));
-
-  if (local_text_updated && remote_text_updated)
+  if (c_anc == mapped)
     {
-      /* conflict */
-      doc_stream_puts (">>>> local\n", out);
-      print_stars (self->level, out);
-      doc_stream_puts (local->heading_text, out);
-      doc_stream_puts ("\n====\n", out);
-      print_stars (self->level, out);
-      doc_stream_puts (remote->heading_text, out);
-      doc_stream_puts ("\n<<<< remote\n", out);
+      if (c_loc == unmapped)
+	{
+	  if (c_rem == unmapped)
+	    {
+	      /* removed in local, removed in remote */
+	    }
+	  else if (c_rem == mapped)
+	    {
+	      /* removed in local, exists in remote */
+	      d_anc = merge_map_get_delta (map, src_ancestor);
+	      d_rem = merge_map_get_delta (map, src_remote);
+
+	      anc = (org_heading *) merge_delta_get_elt (d_anc);
+	      rem = (org_heading *) merge_delta_get_elt (d_rem);
+
+	      if (is_updated (rem, anc))
+		{
+		  doc_stream_puts (">>>>> LOCAL\nDELETED\n=====\n", out);
+		  org_heading_print_op ((doc_elt *)rem, NULL, out);
+		  doc_stream_puts ("<<<<< REMOTE\n", out);
+		}
+	    }
+	}
+      else if (c_loc == mapped)
+	{
+	  if (c_rem == unmapped)
+	    {
+	      /* exists in local, removed in remote */
+	      d_anc = merge_map_get_delta (map, src_ancestor);
+	      d_loc = merge_map_get_delta (map, src_local);
+
+	      anc = (org_heading *) merge_delta_get_elt (d_anc);
+	      loc = (org_heading *) merge_delta_get_elt (d_loc);
+
+	      if (is_updated (loc, anc))
+		{
+		  doc_stream_puts (">>>>> LOCAL\n", out);
+		  org_heading_print_op ((doc_elt *)loc, NULL, out);
+		  doc_stream_puts ("\n=====\nDELETED\n<<<<< REMOTE\n", out);
+		}
+	    }
+	  else if (c_rem == mapped)
+	    {
+	      /* exists in all 3 */
+	      d_anc = merge_map_get_delta (map, src_ancestor);
+	      d_loc = merge_map_get_delta (map, src_local);
+	      d_rem = merge_map_get_delta (map, src_remote);
+
+	      anc = (org_heading *) merge_delta_get_elt (d_anc);
+	      loc = (org_heading *) merge_delta_get_elt (d_loc);
+	      rem = (org_heading *) merge_delta_get_elt (d_rem);
+
+	      bool rem_updated = is_updated (rem, anc);
+	      bool loc_updated = is_updated (loc, anc);
+
+	      if (rem_updated)
+		{
+		  if (loc_updated)
+		    {
+		      doc_stream_puts (">>>>> LOCAL\n", out);
+		      org_heading_print_op ((doc_elt *)loc, NULL, out);
+		      doc_stream_puts ("=====\n", out);
+		      org_heading_print_op ((doc_elt *)rem, NULL, out);
+		      doc_stream_puts ("<<<<< REMOTE\n", out);
+		    }
+		  else
+		    {
+		      org_heading_print_op ((doc_elt *)rem, NULL, out);
+		    }
+		}
+	      else
+		{
+		  org_heading_print_op ((doc_elt *)loc, NULL, out);
+		}
+	    }
+	}
     }
-  else 
+  else
     {
-      /* only one heading text was updated.  Print it at level self->level */
-      /* Self indicates the node */
-      print_stars (self->level, out);
-
-      if (local_text_updated)
+      if (c_loc == mapped)
 	{
-	  doc_stream_puts (self->heading_text, out);
+	  d_loc = merge_map_get_delta (map, src_local);
+	  loc = (org_heading *) merge_delta_get_elt (d_loc);
+	  org_heading_print_op ((doc_elt *)loc, NULL, out);
 	}
-      else if (remote_text_updated)
+      else if (c_rem == mapped)
 	{
-	  doc_stream_puts (remote->heading_text, out);
+	  d_rem = merge_map_get_delta (map, src_remote);
+	  rem = (org_heading *) merge_delta_get_elt (d_rem);
+	  org_heading_print_op ((doc_elt *)rem, NULL, out);
 	}
-      else
-	{
-	  doc_stream_puts (self->heading_text, out);
-	}
-
-      doc_stream_putc ('\n', out);
     }
+
+  ctxt->depth++;
+  return;
 }
 
-bool
-org_heading_compare (org_heading *heading_a, org_heading *heading_b)
+static bool
+org_heading_compare_op (doc_elt *local, doc_src sl, doc_elt *remote, doc_src sr, void *context)
 {
-  bool a = !(strcmp (heading_a->heading_text, heading_b->heading_text));
-  bool b = (heading_a->level == heading_b->level);
-  return (a && b);
+
+  org_heading *hl = (org_heading *) local;
+  org_heading *hr = (org_heading *) remote;
+
+  return !(strcmp (hl->heading_text, hr->heading_text));
 }
 
 /* Getters and Setters */
