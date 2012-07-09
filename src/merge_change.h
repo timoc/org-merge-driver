@@ -11,7 +11,10 @@ typedef enum merge_change
   {
     change_insert,
     change_remove,
+    change_none,
     unchanged,
+    unmapped,
+    mapped,
     matched
   } merge_change;
 
