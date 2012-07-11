@@ -7,6 +7,6 @@
 struct merge_print_ctxt;
 typedef struct merge_print_ctxt merge_print_ctxt;
 
-void merge_print (merge_tree *tree, const merge_print_ctxt *ctxt, doc_stream *out);
+void merge_print (merge_tree *tree, merge_print_ctxt *ctxt, doc_stream *out);
 
 #endif
