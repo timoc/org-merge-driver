@@ -2,12 +2,14 @@
 #include <stdlib.h>
 #include <assert.h>
 
+#include "merge_change.h"
+
 #include "doc_tree.h"
+#include "doc_elt.h"
+
+#include "merge_tree.h"
 #include "merge_map.h"
 #include "merge_delta.h"
-#include "doc_elt.h"
-#include "merge_tree.h"
-#include "merge_change.h"
 
 /* for difseq */
 #include "config.h"
@@ -33,13 +35,19 @@ mark_remove_children  (merge_tree *mtree, doc_src src);
  * @brief Insert all the children of dtree into an empty mtree
  */
 static void
-insert_children  (merge_tree *mtree, doc_tree *dtree, doc_src src);
+mark_insert_children  (merge_tree *mtree, doc_tree *dtree, doc_src src);
+
+typedef enum doc_mapped_state
+  {
+    doc_mapped = 0,
+    doc_unmapped = 1
+  } doc_mapped_state;
 
 merge_tree *
 create_merge_tree (doc_tree *ancestor, doc_tree *local, doc_tree *remote)
 {
   /* create a root node for the merge tree */
-  merge_tree *merge_root = ltree_node_create_empty ();
+  merge_tree *merge_root = merge_node_create_empty ();
   merge_delta *root_delta = merge_delta_create_empty ();
   merge_node_set_delta (merge_root, root_delta);
 
@@ -54,7 +62,7 @@ create_merge_tree (doc_tree *ancestor, doc_tree *local, doc_tree *remote)
   doc_tree_merge (merge_root, local, src_local);
   doc_tree_merge (merge_root, remote, src_remote);
 
-  return ((merge_tree *) merge_root);
+  return (merge_root);
 }
 
 struct context;
@@ -68,8 +76,10 @@ static void note_delete (struct context *ctxt, OFFSET xoff);
 static void note_insert (struct context *ctxt, OFFSET yoff);
 static int compare (struct context *ctxt, OFFSET xoff, OFFSET yoff);
 
-#define EXTRA_CONTEXT_FIELDS			\
-  gl_list_t m_delta;				\
+#define EXTRA_CONTEXT_FIELDS				\
+  doc_mapped_state *m_state;				\
+  doc_mapped_state *d_state;				\
+  gl_list_t m_delta;					\
   merge_delta * d_delta;
 
 #define NOTE_DELETE(ctxt, xoff) note_delete (ctxt, xoff)
@@ -98,28 +108,29 @@ doc_tree_merge (merge_tree *mtree_root, doc_tree *dtree_root, doc_src src)
   /*
    * Establish basic facts about each list 
    */
-  ltree_list mtree_children = ltree_node_get_children (mtree_root);
+  merge_list mtree_children = merge_node_get_children (mtree_root);
   size_t mtree_child_count = gl_list_size (mtree_children);
 
-  ltree_list dtree_children = ltree_node_get_children (dtree_root);
+  doc_list dtree_children = doc_node_get_children (dtree_root);
   size_t dtree_child_count = gl_list_size (dtree_children);
 
   /*
    * Create a delta for every child of the doc_tree.
    */
 
-  /* allocate the deltas in an array */
+  /* allocate the deltas in an array, and initialize the delta */
   merge_delta *dtree_deltas = calloc (dtree_child_count, sizeof (merge_delta));
-
-  /*  Initialize the deltas */
   size_t i;
   for (i = 0; i < dtree_child_count; i++)
     {
       dtree_deltas[i].src  = src;
       dtree_deltas[i].elt  = ltree_node_get_data (((ltree_node *) gl_list_get_at 
 						   (dtree_children, i)));
-      dtree_deltas[i].type = unchanged;
+      //dtree_deltas[i].type = unchanged;
     }
+  /* must initialize to 0 */
+  doc_mapped_state *dtree_state = calloc (dtree_child_count, sizeof (doc_mapped_state));
+  doc_mapped_state *mtree_state = calloc (mtree_child_count, sizeof (doc_mapped_state));
 
   /* 
    * Send the delta lists through compareseq.
@@ -132,6 +143,8 @@ doc_tree_merge (merge_tree *mtree_root, doc_tree *dtree_root, doc_src src)
   struct context ctxt;
 
   /* Add the caller data */
+  ctxt.d_state = dtree_state;
+  ctxt.m_state = mtree_state;
   ctxt.d_delta = dtree_deltas;
   ctxt.m_delta = mtree_children;
 
@@ -153,9 +166,8 @@ doc_tree_merge (merge_tree *mtree_root, doc_tree *dtree_root, doc_src src)
 
   /*
    * Create the mappings and update the merge_tree.
-   */
-
-  /* go through the list in the end and 
+   *
+   * go through the list in the end and 
    * - when there is a 'matched' nodes
    *   - delete the matched elements delta, mark a 'change' in the mapping, 
    *   - point the mapping to the element
@@ -164,20 +176,19 @@ doc_tree_merge (merge_tree *mtree_root, doc_tree *dtree_root, doc_src src)
    *  - when there is a delete:
    *    - mark it in the mapping
    */
-
   int mtree_index = 0; /* # of checked elt's in *tree list */
   int dtree_index = 0;
+  int inserted = 0;
   merge_map * new_map;
 
   while ((mtree_index != mtree_child_count) 
 	 || (dtree_index != dtree_child_count))
     {
       while (dtree_index != dtree_child_count
-	     && dtree_deltas[dtree_index].type == change_insert)
+	     && dtree_state[dtree_index] == doc_unmapped)
 	{
-
 	  merge_delta *d_delta = &(dtree_deltas[dtree_index]);
-	  d_delta->type = unchanged;
+	  //d_delta->type = unchanged;
 
 	  /* a dtree's delta must be inserted into the mtree_children list here
 	   *
@@ -197,23 +208,21 @@ doc_tree_merge (merge_tree *mtree_root, doc_tree *dtree_root, doc_src src)
 	  merge_delta_set_map (&dtree_deltas[dtree_index], new_map);
 
 	  /* add the delta to the merge_tree */
-	  merge_node *new_node = ltree_node_create_empty ();
-	  ltree_node_set_data (new_node, &dtree_deltas[dtree_index]);
-	  gl_list_nx_add_at (mtree_children, mtree_index, new_node);
+	  merge_node *new_node = merge_node_create_empty ();
+	  merge_node_set_delta (new_node, &dtree_deltas[dtree_index]);
+	  merge_node_add_child_at (mtree_root, mtree_index, new_node);
 
 	  /* Add all the children as inserted */
-	  insert_children (new_node, (merge_tree *) gl_list_get_at (dtree_children, dtree_index), src);
+	  mark_insert_children (new_node, doc_node_get_child_at (dtree_root, dtree_index), src);
 
 	  /* Advance the mtree_index and child_count */
 	  mtree_index++;
 	  mtree_child_count++;
+	  inserted++;
 	  dtree_index++;
-
 	}
       while (mtree_index != mtree_child_count
-	     && ((merge_delta *) ltree_node_get_data 
-		 ((merge_node *) gl_list_get_at (mtree_children, mtree_index))
-		 )->type == change_remove)
+	     && mtree_state[mtree_index-inserted] == doc_unmapped)
 	{
 	  merge_node *m_child = (merge_node *)gl_list_get_at (mtree_children, mtree_index);
 	  merge_delta *m_delta = ltree_node_get_data (m_child);
@@ -224,10 +233,12 @@ doc_tree_merge (merge_tree *mtree_root, doc_tree *dtree_root, doc_src src)
 	   * 2. Mark all of thi children as having not existed in this file
 	   * 3. Increment the mtree_index and move on.
 	   */
-	  m_delta->type = unchanged;
+	  //m_delta->type = unchanged;
 	  merge_map_set_delta (map, src, NULL);
 	  merge_map_set_change (map, src, unmapped);
 	  mtree_index++;
+
+	  /* mark all the children as deleted */
 	  mark_remove_children (m_child, src);
 	}
 
@@ -237,15 +248,16 @@ doc_tree_merge (merge_tree *mtree_root, doc_tree *dtree_root, doc_src src)
 	  merge_delta *m_delta = ltree_node_get_data (m_child);
 	  merge_delta *d_delta = &(dtree_deltas[dtree_index]);
 
-	  assert ((d_delta->type == unchanged) && (m_delta->type == unchanged));
-
+	  assert ((mtree_state[mtree_index-inserted] == doc_mapped) && 
+		  (dtree_state[dtree_index] == doc_mapped));
 	  /* 1. Add the dtree_delta to the mtree_delta's mapping, since they must match
 	   * 2. Recurse matching function, using newly matched nodes as root nodes.
 	   */
 	  merge_map *map =  merge_delta_get_map (m_delta);
 	  merge_map_set_delta (map, src, d_delta);
 	  merge_map_set_change (map, src, mapped);
-	  doc_tree_merge (m_child, (merge_tree *)gl_list_get_at (dtree_children, dtree_index), src);
+
+	  doc_tree_merge (m_child, doc_node_get_child_at (dtree_root, dtree_index), src);
 	  mtree_index++;
 	  dtree_index++;
 	}
@@ -264,25 +276,27 @@ mark_remove_children  (merge_tree *mtree, doc_src src)
 }
 
 static void
-insert_children  (merge_tree *mtree, doc_tree *dtree, doc_src src)
+mark_insert_children  (merge_tree *mtree, doc_tree *dtree, doc_src src)
 {
   /**
    * @todo: fix the quick cheese */
   doc_tree_merge (mtree, dtree, src);
 }
 
-static
-void note_delete (struct context *ctxt, OFFSET xoff)
+static void 
+note_delete (struct context *ctxt, OFFSET xoff)
 {
-  merge_delta *m_d =  (ltree_node_get_data ((merge_node *)gl_list_get_at (ctxt->m_delta, xoff)));
-  m_d->type = change_remove;
+  //merge_delta *m_d =  (ltree_node_get_data ((merge_node *)gl_list_get_at (ctxt->m_delta, xoff)));
+  //m_d->type = change_remove;
+  ctxt->m_state[xoff] = doc_unmapped;
   return;
 }
 
-static
-void note_insert (struct context *ctxt, OFFSET yoff)
+static void 
+note_insert (struct context *ctxt, OFFSET yoff)
 {
-  ctxt->d_delta[yoff].type = change_insert;
+  //ctxt->d_delta[yoff].type = change_insert;
+  ctxt->d_state[yoff] = doc_unmapped;
   return;
 }
 
