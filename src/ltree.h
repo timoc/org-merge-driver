@@ -77,6 +77,13 @@ ltree_node_get_child_at (ltree_node *node, int index)
 }
 
 static inline void
+ltree_node_add_child_at (ltree_node *node, int index, void *elt)
+{
+  gl_list_nx_add_at (ltree_node_get_children(node), index, elt);
+  return;
+}
+
+static inline void
 ltree_node_add_child_last (ltree_node *node, void*e)
 {
   gl_list_t list = ltree_node_get_children (node);

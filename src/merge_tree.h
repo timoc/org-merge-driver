@@ -74,6 +74,13 @@ merge_node_get_child_at (merge_node *node, int index)
 }
 
 static inline void
+merge_node_add_child_at (merge_node *node, int index, merge_node *elt)
+{
+  ltree_node_add_child_at (node, index, elt);
+  return;
+}
+
+static inline void
 merge_node_free (merge_node *node)
 {
   return;

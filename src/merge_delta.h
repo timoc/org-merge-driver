@@ -12,11 +12,11 @@
 struct doc_elt;
 typedef struct doc_elt doc_elt;
 
+
 typedef struct merge_delta
 {
   doc_src src;
   doc_elt *elt;
-  merge_change type;
   merge_map *map;
 } merge_delta;
 
@@ -27,7 +27,6 @@ merge_delta_create_empty ()
   md->elt = NULL;
   md->map = NULL;
   md->src = 0;
-  md->type = unchanged; 
   return md;
 }
 
@@ -71,6 +70,13 @@ merge_delta_get_doc_src (merge_delta *delta)
 
 static inline void
 merge_delta_set_doc_src (merge_delta *delta, doc_src src)
+{
+  delta->src = src;
+  return;
+}
+
+static inline void
+merge_delta_set_type (merge_delta *delta, doc_src src)
 {
   delta->src = src;
   return;
