@@ -55,6 +55,12 @@ doc_node_create_empty ()
   return ltree_node_create_empty ();
 }
 
+static inline doc_node *
+doc_node_get_child_at (doc_node *node, int index)
+{
+  return ltree_node_get_child_at (node, index);
+}
+
 static inline void
 doc_node_add_child_last (doc_node *node, doc_node *e)
 {
