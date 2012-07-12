@@ -64,6 +64,7 @@ merge_node_create_empty ()
 static inline void
 merge_node_add_child_last (merge_node *node, merge_node *child)
 {
+  merge_node_set_parent (child, node);
   ltree_node_add_child_last (node, (void *) child);
 }
 
@@ -76,6 +77,7 @@ merge_node_get_child_at (merge_node *node, int index)
 static inline void
 merge_node_add_child_at (merge_node *node, int index, merge_node *elt)
 {
+  merge_node_set_parent (elt, node);
   ltree_node_add_child_at (node, index, elt);
   return;
 }
