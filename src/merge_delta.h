@@ -18,6 +18,7 @@ typedef struct merge_delta
   doc_src src;
   doc_elt *elt;
   merge_map *map;
+  int child_update;
 } merge_delta;
 
 static inline merge_delta *
@@ -82,4 +83,13 @@ merge_delta_set_type (merge_delta *delta, doc_src src)
   return;
 }
 
+static inline void
+mark_child_update (merge_delta * delta)
+{
+  /**
+   * @todo Make this do something better
+   */
+  delta->child_update = true;
+  return;
+}
 #endif
