@@ -84,12 +84,22 @@ merge_delta_set_type (merge_delta *delta, doc_src src)
 }
 
 static inline void
-mark_child_update (merge_delta * delta)
+smerge_delta_set_child_update (merge_delta * delta, int val)
 {
   /**
    * @todo Make this do something better
    */
-  delta->child_update = true;
+  delta->child_update = val;
   return;
 }
+
+static inline int
+merge_delta_get_child_update (merge_delta * delta)
+{
+  /**
+   * @todo Make this do something better
+   */
+  return delta->child_update;
+}
+
 #endif
