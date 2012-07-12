@@ -6,6 +6,8 @@
 
 #include <stdlib.h>
 #include <stdbool.h>
+#include "debug.h"
+
 #include "doc_elt_ops.h"
 #include "doc_stream.h"
 #include "doc_tree.h"
@@ -75,13 +77,31 @@ doc_elt_merge_print (doc_elt *elt, merge_delta *delta, void * context, doc_strea
  * equal and doc_elt_compare will always return false.
  */
 static inline bool
-doc_elt_compare (doc_elt *elt_a, doc_src s1, doc_elt *elt_b, doc_src s2, void *context)
+doc_elt_is_related (doc_elt *elt_a, doc_src s1, doc_elt *elt_b, doc_src s2, void *context)
 {
   bool status = false;
   doc_elt_ops *ops = doc_elt_get_ops (elt_a);
   if (ops == doc_elt_get_ops (elt_b))
     {
-      status = doc_elt_ops_get_compare (ops)(elt_a, s1, elt_b, s2, context);
+      status = doc_elt_ops_get_is_related (ops)(elt_a, s1, elt_b, s2, context);
+    }
+  return status;
+}
+
+/**
+ * @brief Compare two org_elements.
+ * @self Compare this element. Uses this elements operations.
+ * @other_element The element to compare with.
+ */
+static inline doc_elt_compare_result
+doc_elt_compare (doc_elt *elt_a, doc_src s1, doc_elt *elt_b, doc_src s2)
+{
+  doc_elt_compare_result status = elt_compare_different;
+  doc_elt_ops *ops = doc_elt_get_ops (elt_a);
+  if (ops == doc_elt_get_ops (elt_b))
+    {
+      status = doc_elt_ops_get_compare (ops)(elt_a, s1, elt_b, s2);
+      debug_msg (DOC_ELT, 3, "ops: %d", status);
     }
   return status;
 }
