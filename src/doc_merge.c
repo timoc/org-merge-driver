@@ -37,6 +37,12 @@ mark_remove_children  (merge_tree *mtree, doc_src src);
 static void
 mark_insert_children  (merge_tree *mtree, doc_tree *dtree, doc_src src);
 
+/**
+ * @brief Mark the children as matched, and attempt to match their children
+ */
+static void
+mark_match_children  (merge_tree *mtree, doc_tree *dtree, doc_src src);
+
 typedef enum doc_mapped_state
   {
     doc_mapped = 0,
@@ -106,7 +112,7 @@ doc_tree_merge (merge_tree *mtree_root, doc_tree *dtree_root, doc_src src)
    */
 
   /*
-   * Establish basic facts about each list 
+   * Establish basic facts about each list
    */
   merge_list mtree_children = merge_node_get_children (mtree_root);
   size_t mtree_child_count = gl_list_size (mtree_children);
@@ -167,9 +173,9 @@ doc_tree_merge (merge_tree *mtree_root, doc_tree *dtree_root, doc_src src)
   /*
    * Create the mappings and update the merge_tree.
    *
-   * go through the list in the end and 
+   * go through the list in the end and
    * - when there is a 'matched' nodes
-   *   - delete the matched elements delta, mark a 'change' in the mapping, 
+   *   - delete the matched elements delta, mark a 'change' in the mapping,
    *   - point the mapping to the element
    * - when there is an insert:
    *   - add the dnode at that point
@@ -181,7 +187,7 @@ doc_tree_merge (merge_tree *mtree_root, doc_tree *dtree_root, doc_src src)
   int inserted = 0;
   merge_map * new_map;
 
-  while ((mtree_index != mtree_child_count) 
+  while ((mtree_index != mtree_child_count)
 	 || (dtree_index != dtree_child_count))
     {
       while (dtree_index != dtree_child_count
@@ -192,10 +198,10 @@ doc_tree_merge (merge_tree *mtree_root, doc_tree *dtree_root, doc_src src)
 
 	  /* a dtree's delta must be inserted into the mtree_children list here
 	   *
-	   * 1. create a mapping 
-	   * 2. Add the delta to the mapping 
-	   * 3. Mark the mapping as 'inserted' by the document being merged 
-	   * 4. Insert the delta into the merge tree 
+	   * 1. create a mapping
+	   * 2. Add the delta to the mapping
+	   * 3. Mark the mapping as 'inserted' by the document being merged
+	   * 4. Insert the delta into the merge tree
 	   * 5. Increment dtree_index, mtree_child_count
 	   *    - increment mtree_index also, to move past newly inserted node.
 	   * 6. add the node's children to the list as 'inserted'
@@ -248,7 +254,7 @@ doc_tree_merge (merge_tree *mtree_root, doc_tree *dtree_root, doc_src src)
 	  merge_delta *m_delta = ltree_node_get_data (m_child);
 	  merge_delta *d_delta = &(dtree_deltas[dtree_index]);
 
-	  assert ((mtree_state[mtree_index-inserted] == doc_mapped) && 
+	  assert ((mtree_state[mtree_index-inserted] == doc_mapped) &&
 		  (dtree_state[dtree_index] == doc_mapped));
 	  /* 1. Add the dtree_delta to the mtree_delta's mapping, since they must match
 	   * 2. Recurse matching function, using newly matched nodes as root nodes.
@@ -257,7 +263,7 @@ doc_tree_merge (merge_tree *mtree_root, doc_tree *dtree_root, doc_src src)
 	  merge_map_set_delta (map, src, d_delta);
 	  merge_map_set_change (map, src, mapped);
 
-	  doc_tree_merge (m_child, doc_node_get_child_at (dtree_root, dtree_index), src);
+	  mark_match_children (m_child, doc_node_get_child_at (dtree_root, dtree_index), src);
 	  mtree_index++;
 	  dtree_index++;
 	}
@@ -283,7 +289,14 @@ mark_insert_children  (merge_tree *mtree, doc_tree *dtree, doc_src src)
   doc_tree_merge (mtree, dtree, src);
 }
 
-static void 
+static void
+mark_match_children  (merge_tree *mtree, doc_tree *dtree, doc_src src)
+{
+  doc_tree_merge (mtree, dtree, src);
+  return;
+}
+
+static void
 note_delete (struct context *ctxt, OFFSET xoff)
 {
   //merge_delta *m_d =  (ltree_node_get_data ((merge_node *)gl_list_get_at (ctxt->m_delta, xoff)));
@@ -292,7 +305,7 @@ note_delete (struct context *ctxt, OFFSET xoff)
   return;
 }
 
-static void 
+static void
 note_insert (struct context *ctxt, OFFSET yoff)
 {
   //ctxt->d_delta[yoff].type = change_insert;
