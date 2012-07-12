@@ -323,3 +323,23 @@ int compare (struct context *ctxt, OFFSET xoff, OFFSET yoff)
 
   return doc_elt_compare (d_d.elt, d_d.src, m_d->elt, m_d->src, NULL);
 }
+
+/**
+ * Travel upwards through a tree, marking that a child has been updated.
+ * This program will stop when it cannot travel upwards anymore.
+ */
+static void
+note_child_update (merge_node* node)
+{
+  merge_delta *delta = merge_node_get_delta (node);
+  if (!merge_delta_get_child_update(delta))
+    {
+      merge_delta_set_child_update (delta, true);
+      merge_node *parent = merge_node_get_parent (node);
+      if (parent)
+	{
+	  note_child_update (parent);
+	}
+    }
+  return;
+}
