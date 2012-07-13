@@ -19,16 +19,20 @@ struct org_heading_ops;
 
 static void org_heading_print_op (doc_elt *self, void *context, doc_stream *out);
 
-static void org_heading_merge_print_op (merge_delta *delta, merge_print_ctxt *ctxt, 
+static void org_heading_merge_print_op (merge_delta *delta, merge_print_ctxt *ctxt,
 					doc_stream *out);
 
-static bool org_heading_compare_op (doc_elt *local, doc_src sl, doc_elt *remote, 
-				    doc_src s2, void *context);
+static int org_heading_is_related_op (doc_elt *local, doc_src sl,
+				      doc_elt *remote, doc_src s2,
+				      void *context);
+static doc_elt_compare_result
+org_heading_compare_op (doc_elt *a, doc_src a_src, doc_elt *b, doc_src b_src);
 
 /* Declaration of org_element operations table */
 static struct doc_elt_ops org_heading_ops = {
   .print        = &org_heading_print_op,
   .merge_print  = &org_heading_merge_print_op,
+  .is_related   = &org_heading_is_related_op,
   .compare      = &org_heading_compare_op
 };
 
@@ -58,7 +62,7 @@ org_heading_free (org_heading *self)
 }
 
 /* doc_elt interface */
-static void 
+static void
 org_heading_print_op (doc_elt *elt, void *ctxt, doc_stream *out)
 {
   int i = 0;
@@ -203,8 +207,8 @@ org_heading_merge_print_op (merge_delta *delta, merge_print_ctxt *ctxt, doc_stre
   return;
 }
 
-static bool
-org_heading_compare_op (doc_elt *local, doc_src sl, doc_elt *remote, doc_src sr, void *context)
+static int
+org_heading_is_related_op (doc_elt *local, doc_src sl, doc_elt *remote, doc_src sr, void *context)
 {
 
   org_heading *hl = (org_heading *) local;
@@ -214,7 +218,7 @@ org_heading_compare_op (doc_elt *local, doc_src sl, doc_elt *remote, doc_src sr,
 }
 
 /* Getters and Setters */
-int 
+int
 org_heading_get_level (org_heading *self)
 {
   return self->level;
@@ -238,4 +242,24 @@ org_heading_set_text (org_heading *self, char *heading_text)
 {
   self->heading_text = heading_text;
   return;
+}
+
+
+static doc_elt_compare_result
+org_heading_compare_op (doc_elt *a, doc_src a_src, doc_elt *b, doc_src b_src)
+{
+  /**
+   * @todo make this function compare no identifiable parts of the element
+   * this function just returns if the two texts are the same or not
+   */
+
+  org_heading *hl = (org_heading *) a;
+  org_heading *hr = (org_heading *) b;
+
+  if (!(strcmp (hl->heading_text, hr->heading_text)))
+    {
+      return elt_compare_same;
+    }
+
+  return elt_compare_different;
 }
