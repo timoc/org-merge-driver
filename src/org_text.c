@@ -8,13 +8,24 @@
 #include "merge_print_ctxt.h"
 
 struct org_text_ops;
-static void org_text_print_op (doc_elt *self, void *ctxt, doc_stream *out);
-static void org_text_merge_print_op (merge_delta *delta, merge_print_ctxt *ctxt, doc_stream *out);
-static bool org_text_compare_op (doc_elt *a, doc_src, doc_elt *b, doc_src, void *ctxt);
+
+static void
+org_text_print_op (doc_elt *self, void *ctxt, doc_stream *out);
+
+static void
+org_text_merge_print_op (merge_delta *delta, merge_print_ctxt *ctxt,
+			 doc_stream *out);
+
+static int
+org_text_is_related_op (doc_elt *a, doc_src a_src, doc_elt *b, doc_src b_src, void *ctxt);
+
+static doc_elt_compare_result
+org_text_compare_op (doc_elt *a, doc_src a_src, doc_elt *b, doc_src b_src);
 
 static doc_elt_ops org_text_ops = {
   .print       = &org_text_print_op,
   .merge_print = &org_text_merge_print_op,
+  .is_related  = &org_text_is_related_op,
   .compare     = &org_text_compare_op
 };
 
@@ -25,8 +36,8 @@ struct org_text
   size_t   text_size;
 };
 
-/* 
- * Constructor, Destructor 
+/*
+ * Constructor, Destructor
  */
 org_text *
 org_text_create_empty ()
@@ -49,8 +60,8 @@ org_text_free (org_text *self)
   free (self);
 }
 
-/* 
- * Modifier functions 
+/*
+ * Modifier functions
  */
 void
 org_text_strncat (org_text *self, char *str, size_t num)
@@ -74,22 +85,23 @@ org_text_get_text_size (org_text *self)
   return self->text_size;
 }
 
-/* 
+/*
  * Document Element Operations
  */
-void 
+void
 org_text_print_op (doc_elt *self, void *ctxt, doc_stream *out)
 {
   assert (self->ops == &org_text_ops);
 
   /**
-   * @todo switch fwrite with a doc_stream function. 
+   * @todo switch fwrite with a doc_stream function.
    */
   fwrite (((org_text *)self)->text, sizeof(char), ((org_text *)self)->text_size, out);
   return;
 }
 
-static void org_text_merge_print_op (merge_delta *delta, merge_print_ctxt *ctxt, doc_stream *out)
+static void
+org_text_merge_print_op (merge_delta *delta, merge_print_ctxt *ctxt, doc_stream *out)
 {
   /**
    * @todo Implement org_text_merge_print_op.
@@ -102,7 +114,8 @@ static void org_text_merge_print_op (merge_delta *delta, merge_print_ctxt *ctxt,
   return;
 }
 
-static bool org_text_compare_op (doc_elt *a, doc_src a_src, doc_elt *b, doc_src b_src, void *ctxt)
+static int
+org_text_is_related_op (doc_elt *a, doc_src a_src, doc_elt *b, doc_src b_src, void *ctxt)
 {
   /* If two text elements have the same text, then they are equal.
    * Use standard string.h's strcmp to achieve this.
@@ -111,4 +124,21 @@ static bool org_text_compare_op (doc_elt *a, doc_src a_src, doc_elt *b, doc_src 
   assert (b->ops == &org_text_ops);
 
   return ( 0 == strcmp (((org_text *)a)->text, ((org_text *)b)->text));
+}
+
+static doc_elt_compare_result
+org_text_compare_op (doc_elt *a, doc_src a_src, doc_elt *b, doc_src b_src)
+{
+  /**
+   * this function just returns if the two texts are the same or not
+   */
+  assert (a->ops == &org_text_ops);
+  assert (b->ops == &org_text_ops);
+
+  if ( 0 == strcmp (((org_text *)a)->text, ((org_text *)b)->text))
+    {
+      return elt_compare_same;
+    }
+
+  return elt_compare_different;
 }
