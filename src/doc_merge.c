@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <assert.h>
 
+#include "debug.h"
 #include "merge_change.h"
 
 #include "doc_tree.h"
@@ -43,6 +44,13 @@ mark_insert_children  (merge_tree *mtree, doc_tree *dtree, doc_src src);
 static void
 mark_match_children  (merge_tree *mtree, doc_tree *dtree, doc_src src);
 
+/**
+ * Travel upwards through a tree, marking that a child has been updated.
+ * This program will stop when it cannot travel upwards anymore.
+ */
+static void
+parent_note_child_update (merge_node* node);
+
 typedef enum doc_mapped_state
   {
     doc_mapped = 0,
@@ -80,7 +88,7 @@ struct context;
 
 static void note_delete (struct context *ctxt, OFFSET xoff);
 static void note_insert (struct context *ctxt, OFFSET yoff);
-static int compare (struct context *ctxt, OFFSET xoff, OFFSET yoff);
+static int is_related (struct context *ctxt, OFFSET xoff, OFFSET yoff);
 
 #define EXTRA_CONTEXT_FIELDS				\
   doc_mapped_state *m_state;				\
@@ -90,7 +98,7 @@ static int compare (struct context *ctxt, OFFSET xoff, OFFSET yoff);
 
 #define NOTE_DELETE(ctxt, xoff) note_delete (ctxt, xoff)
 #define NOTE_INSERT(ctxt, yoff) note_insert (ctxt, yoff)
-#define XVECREF_YVECREF_EQUAL(ctxt, xoff, yoff) compare (ctxt, xoff, yoff)
+#define XVECREF_YVECREF_EQUAL(ctxt, xoff, yoff) is_related (ctxt, xoff, yoff)
 
 #include "diffseq.h"
 #define OFFSET int
@@ -138,9 +146,9 @@ doc_tree_merge (merge_tree *mtree_root, doc_tree *dtree_root, doc_src src)
   doc_mapped_state *dtree_state = calloc (dtree_child_count, sizeof (doc_mapped_state));
   doc_mapped_state *mtree_state = calloc (mtree_child_count, sizeof (doc_mapped_state));
 
-  /* 
+  /*
    * Send the delta lists through compareseq.
-   * 
+   *
    * compareseq will leave add/remove notes in the deltas. Notes are
    * left in the deltas as a convenience.
    */
@@ -276,8 +284,10 @@ static void
 mark_remove_children  (merge_tree *mtree, doc_src src)
 {
  /**
-  * @todo: fix the quick cheese */
+  * @todo: fix the quick cheese
+  */
   // recursively mark all children nodes as removed
+  debug_msg (MERGE, 3, "Node has been removed\n");
   doc_tree_merge (mtree, ltree_node_create_empty(), src);
 }
 
@@ -285,13 +295,38 @@ static void
 mark_insert_children  (merge_tree *mtree, doc_tree *dtree, doc_src src)
 {
   /**
-   * @todo: fix the quick cheese */
+   * @todo: fix the quick cheese
+   */
+  /* if an element was  updated and matched, notify all parents */
+  merge_delta * delta = merge_node_get_delta (mtree);
+
+  merge_delta_set_child_update (delta, true);
+  debug_msg (MERGE, 3, "Node has been inserted\n");
+  parent_note_child_update(mtree);
+
   doc_tree_merge (mtree, dtree, src);
 }
 
 static void
-mark_match_children  (merge_tree *mtree, doc_tree *dtree, doc_src src)
+mark_match_children (merge_tree *mtree, doc_tree *dtree, doc_src src)
 {
+  /**
+   * @TODO store the comparison function result from before
+   */
+  /* if an element was  updated and matched, notify all parents */
+  merge_delta * delta = merge_node_get_delta (mtree);
+
+  doc_elt_compare_result r =
+    doc_elt_compare (merge_delta_get_elt(delta), merge_delta_get_doc_src (delta),
+		     doc_node_get_elt (dtree), src);
+  debug_msg (MERGE, 3, "Node has been matched\n");
+  debug_msg (MERGE, 5, "compare result: %d\n", r);
+  if (r == elt_compare_a_updated || r == elt_compare_b_updated)
+    {
+      merge_delta_set_child_update (delta, true);
+      debug_msg (MERGE, 4, "Node has updated content\n");
+      parent_note_child_update(mtree);
+    }
   doc_tree_merge (mtree, dtree, src);
   return;
 }
@@ -299,8 +334,6 @@ mark_match_children  (merge_tree *mtree, doc_tree *dtree, doc_src src)
 static void
 note_delete (struct context *ctxt, OFFSET xoff)
 {
-  //merge_delta *m_d =  (ltree_node_get_data ((merge_node *)gl_list_get_at (ctxt->m_delta, xoff)));
-  //m_d->type = change_remove;
   ctxt->m_state[xoff] = doc_unmapped;
   return;
 }
@@ -308,37 +341,41 @@ note_delete (struct context *ctxt, OFFSET xoff)
 static void
 note_insert (struct context *ctxt, OFFSET yoff)
 {
-  //ctxt->d_delta[yoff].type = change_insert;
   ctxt->d_state[yoff] = doc_unmapped;
   return;
 }
 
 static
-int compare (struct context *ctxt, OFFSET xoff, OFFSET yoff)
+int is_related (struct context *ctxt, OFFSET xoff, OFFSET yoff)
 {
   gl_list_t list = ctxt->m_delta;
   merge_node *m_n = (merge_node *)gl_list_get_at (list, xoff);
   merge_delta *m_d = merge_node_get_delta (m_n);
   merge_delta d_d = ctxt->d_delta[yoff];
-
-  return doc_elt_compare (d_d.elt, d_d.src, m_d->elt, m_d->src, NULL);
+  return doc_elt_is_related (d_d.elt, d_d.src, m_d->elt, m_d->src, NULL);
 }
 
 /**
  * Travel upwards through a tree, marking that a child has been updated.
  * This program will stop when it cannot travel upwards anymore.
  */
+
 static void
-note_child_update (merge_node* node)
+parent_note_child_update (merge_node* node)
 {
-  merge_delta *delta = merge_node_get_delta (node);
-  if (!merge_delta_get_child_update(delta))
+  merge_node *parent = merge_node_get_parent (node);
+  if (parent)
     {
-      merge_delta_set_child_update (delta, true);
-      merge_node *parent = merge_node_get_parent (node);
-      if (parent)
+      merge_delta *delta = merge_node_get_delta (parent);
+      if (!merge_delta_get_child_update(delta))
 	{
-	  note_child_update (parent);
+	  merge_delta_set_child_update (delta, true);
+	  debug_msg (MERGE, 4, "Marking parent as updated\n");
+	  parent_note_child_update (parent);
+	}
+      else
+	{
+	  debug_msg (MERGE, 5, "Already marked parent\n");
 	}
     }
   return;
