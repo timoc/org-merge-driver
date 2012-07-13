@@ -84,7 +84,7 @@ merge_delta_set_type (merge_delta *delta, doc_src src)
 }
 
 static inline void
-smerge_delta_set_child_update (merge_delta * delta, int val)
+merge_delta_set_child_update (merge_delta * delta, int val)
 {
   /**
    * @todo Make this do something better
