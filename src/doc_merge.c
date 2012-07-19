@@ -36,13 +36,13 @@ mark_remove_children  (merge_tree *mtree, doc_src src);
  * @brief Insert all the children of dtree into an empty mtree
  */
 static void
-mark_insert_children  (merge_tree *mtree, doc_tree *dtree, doc_src src);
+mark_insert_children (merge_tree *mtree, doc_tree *dtree, doc_src src);
 
 /**
  * @brief Mark the children as matched, and attempt to match their children
  */
 static void
-mark_match_children  (merge_tree *mtree, doc_tree *dtree, doc_src src);
+mark_match_children (merge_tree *mtree, doc_tree *dtree, doc_src src);
 
 /**
  * Travel upwards through a tree, marking that a child has been updated.
@@ -298,12 +298,13 @@ mark_insert_children  (merge_tree *mtree, doc_tree *dtree, doc_src src)
    * @todo: fix the quick cheese
    */
   /* if an element was  updated and matched, notify all parents */
-  merge_delta * delta = merge_node_get_delta (mtree);
-
-  merge_delta_set_child_update (delta, true);
   debug_msg (MERGE, 3, "Node has been inserted\n");
-  parent_note_child_update(mtree);
-
+  if (src != src_ancestor)
+    {
+      merge_delta * delta = merge_node_get_delta (mtree);
+      merge_delta_set_child_update (delta, true);
+      parent_note_child_update(mtree);
+    }
   doc_tree_merge (mtree, dtree, src);
 }
 
@@ -321,7 +322,7 @@ mark_match_children (merge_tree *mtree, doc_tree *dtree, doc_src src)
 		     doc_node_get_elt (dtree), src);
   debug_msg (MERGE, 3, "Node has been matched\n");
   debug_msg (MERGE, 5, "compare result: %d\n", r);
-  if (r == elt_compare_a_updated || r == elt_compare_b_updated)
+  if (r != 0)
     {
       merge_delta_set_child_update (delta, true);
       debug_msg (MERGE, 4, "Node has updated content\n");
@@ -337,7 +338,7 @@ note_delete (struct context *ctxt, OFFSET xoff)
   ctxt->m_state[xoff] = doc_unmapped;
   return;
 }
-
+{
 static void
 note_insert (struct context *ctxt, OFFSET yoff)
 {
@@ -364,18 +365,21 @@ static void
 parent_note_child_update (merge_node* node)
 {
   merge_node *parent = merge_node_get_parent (node);
-  if (parent)
+  if (parent != NULL)
     {
       merge_delta *delta = merge_node_get_delta (parent);
-      if (!merge_delta_get_child_update(delta))
+      if (delta != NULL)
 	{
-	  merge_delta_set_child_update (delta, true);
-	  debug_msg (MERGE, 4, "Marking parent as updated\n");
-	  parent_note_child_update (parent);
-	}
-      else
-	{
-	  debug_msg (MERGE, 5, "Already marked parent\n");
+	  if (merge_delta_get_child_update (delta) == 0)
+	    {
+	      merge_delta_set_child_update (delta, true);
+	      debug_msg (MERGE, 4, "Marking parent as updated\n");
+	      parent_note_child_update (parent);
+	    }
+	  else
+	    {
+	      debug_msg (MERGE, 5, "Already marked parent\n");
+	    }
 	}
     }
   return;
