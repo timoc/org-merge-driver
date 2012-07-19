@@ -39,7 +39,7 @@ ltree_node_get_data (ltree_node *node)
 {
   return node->data;
 }
-  
+
 static inline void
 ltree_node_set_data (ltree_node *node, void *data)
 {
@@ -64,8 +64,9 @@ static inline ltree_node *
 ltree_node_create_empty ()
 {
   ltree_node *l = malloc (sizeof (ltree_node));
-  ltree_node_set_children (l, gl_list_nx_create_empty (GL_ARRAY_LIST, NULL, 
+  ltree_node_set_children (l, gl_list_nx_create_empty (GL_ARRAY_LIST, NULL,
 						       NULL, NULL, true));
+  l->parent = NULL;
   return l;
 }
 
