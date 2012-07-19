@@ -35,6 +35,16 @@ typedef enum doc_src
     src_remote   = (offsetof (struct merge_map, remote))
   } doc_src;
 
+/**
+ * An element's key, indexed by
+ */
+typedef int map_key;
+/**
+ * An element
+ */
+typedef int map_set;
+static const int NO_MAP_SET = -1;
+
 static inline merge_delta_change *
 merge_map_get_delta_change (merge_map *map, doc_src src)
 {
