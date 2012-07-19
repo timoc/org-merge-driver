@@ -10,6 +10,7 @@
 #include <assert.h>
 #include "doc_stream.h"
 #include "merge_delta.h"
+#include "merge_map.h"
 #include "merge_print_ctxt.h"
 
 struct doc_elt;
@@ -18,7 +19,7 @@ typedef struct doc_elt doc_elt;
 typedef enum doc_elt_compare_result
   {
     elt_compare_different,
-    elt_compare_same,
+    elt_compare_same = 0,
     elt_compare_a_updated,
     elt_compare_b_updated
   } doc_elt_compare_result;
@@ -27,8 +28,8 @@ typedef void(* doc_elt_ops_print)( doc_elt *, void *, doc_stream *);
 typedef void(* doc_elt_ops_merge_print)(merge_delta *, merge_print_ctxt *, doc_stream *);
 typedef doc_elt_compare_result (* doc_elt_ops_compare)(doc_elt *, doc_src, doc_elt *, doc_src);
 typedef int (* doc_elt_ops_is_related)(doc_elt *, doc_src, doc_elt *, doc_src, void *);
-typedef int (* doc_elt_ops_get_type)(doc_elt *);
-typedef int (* doc_elt_ops_get_key)(doc_elt *);
+typedef map_set (* doc_elt_ops_get_map_set)(doc_elt *);
+typedef map_key (* doc_elt_ops_get_map_key)(doc_elt *);
 
 typedef struct doc_elt_ops
 {
@@ -36,8 +37,8 @@ typedef struct doc_elt_ops
   doc_elt_ops_merge_print merge_print;
   doc_elt_ops_compare     compare;
   doc_elt_ops_is_related  is_related;
-  doc_elt_ops_get_type    get_type;
-  doc_elt_ops_get_key     get_key;
+  doc_elt_ops_get_map_set get_map_set;
+  doc_elt_ops_get_map_key get_map_key;
 } doc_elt_ops;
 
 static inline doc_elt_ops *
@@ -112,32 +113,43 @@ doc_elt_ops_set_is_related (doc_elt_ops *ops, doc_elt_ops_is_related is_related)
   return;
 }
 
-static inline doc_elt_ops_get_type
-doc_elt_ops_get_get_type (doc_elt_ops *ops)
+/**
+ * Get the get_map_set operator of an ops struct.
+ */
+static inline doc_elt_ops_get_map_set
+doc_elt_ops_get_get_map_set (doc_elt_ops *ops)
 {
   assert (ops != NULL);
-  return ops->get_type;
+  return ops->get_map_set;
 }
 
+/**
+ * Set the get_map_set operator of an ops struct.
+ */
 static inline void
-doc_elt_ops_set_get_type (doc_elt_ops *ops, doc_elt_ops_get_type get_type)
+doc_elt_ops_set_get_map_set (doc_elt_ops *ops, doc_elt_ops_get_map_set get_map_set)
 {
   assert (ops != NULL);
-  ops->get_type = get_type;
+  ops->get_map_set = get_map_set;
   return;
 }
 
-static inline doc_elt_ops_get_key
-doc_elt_ops_get_get_key (doc_elt_ops *ops)
+/**
+ * Get the get_map_key operator of an ops struct.
+ */
+static inline doc_elt_ops_get_map_key
+doc_elt_ops_get_get_map_key (doc_elt_ops *ops)
 {
   assert (ops != NULL);
-  return ops->get_key;
+  return ops->get_map_key;
 }
-
+/**
+ * Set the get_map_key operator of an ops struct.
+ */
 static inline void
-doc_elt_ops_set_get_key (doc_elt_ops *ops, doc_elt_ops_get_key get_key)
+doc_elt_ops_set_get_map_key (doc_elt_ops *ops, doc_elt_ops_get_map_key get_map_key)
 {
   assert (ops != NULL);
-  ops->get_key = get_key;
+  ops->get_map_key = get_map_key;
 }
 #endif
