@@ -14,7 +14,7 @@
 #include "merge_tree.h"
 #include "merge_delta.h"
 #include "doc_elt.h"
-    
+
 #define FUNC_NAME merge_print
 #define CONTEXT_DOWN merge_print_ctxt
 #define CONTEXT_GLOBAL doc_stream
@@ -26,9 +26,17 @@
   if (elt != NULL)							\
     {									\
      doc_elt_merge_print (elt, delta, &new_ct_down, ct_glob);		\
-    }
+    }									\
+  switch (new_ct_down.content_conflict_state) {				\
+  case 1: doc_stream_puts("===\n", ct_glob); new_ct_down.content_conflict_state++; \
+  case 2: doc_stream_puts("<<<\n", ct_glob); new_ct_down.content_conflict_state=0;} \
+  int struct_state = new_ct_down.structural_conflict_state; \
+  new_ct_down.structural_conflict_state = 0;
 
-//#define END_FUNC
+#define END_FUNC					\
+  switch (struct_state) {				\
+  case 1: doc_stream_puts("===\n", ct_glob); struct_state++;	\
+  case 2: doc_stream_puts("<<<\n", ct_glob); }
 
 #include "ltree_apply.h"
 
