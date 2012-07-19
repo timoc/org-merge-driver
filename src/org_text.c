@@ -104,9 +104,7 @@ static void
 org_text_merge_print_op (merge_delta *delta, merge_print_ctxt *ctxt, doc_stream *out)
 {
   /**
-   * @todo Implement org_text_merge_print_op.
-   */
-
+   * @todo Implement org_text_merge_print_op. */
   /* For now, just print the one element */
   doc_elt *elt = merge_delta_get_elt (delta);
   org_text_print_op (elt, ctxt, out);
@@ -123,7 +121,7 @@ org_text_is_related_op (doc_elt *a, doc_src a_src, doc_elt *b, doc_src b_src, vo
   assert (a->ops == &org_text_ops);
   assert (b->ops == &org_text_ops);
 
-  return ( 0 == strcmp (((org_text *)a)->text, ((org_text *)b)->text));
+  return 0; //( 0 == strcmp (((org_text *)a)->text, ((org_text *)b)->text));
 }
 
 static doc_elt_compare_result
@@ -140,5 +138,5 @@ org_text_compare_op (doc_elt *a, doc_src a_src, doc_elt *b, doc_src b_src)
       return elt_compare_same;
     }
 
-  return elt_compare_different;
+  return 1;//elt_compare_different;
 }
