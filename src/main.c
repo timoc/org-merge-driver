@@ -48,6 +48,8 @@ main (int argc, char *argv[])
 
 	      merge_print_ctxt mp_ctxt;
 	      mp_ctxt.depth = 0;
+	      mp_ctxt.content_conflict_state = 0;
+	      mp_ctxt.structural_conflict_state=0;
 	      merge_print (mtree, &mp_ctxt, out);
 
 	      fclose (rem_file);
