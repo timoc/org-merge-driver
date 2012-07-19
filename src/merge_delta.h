@@ -28,6 +28,7 @@ merge_delta_create_empty ()
   md->elt = NULL;
   md->map = NULL;
   md->src = 0;
+  md->child_update = 0;
   return md;
 }
 
