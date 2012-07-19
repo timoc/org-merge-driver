@@ -11,6 +11,7 @@
 #include "doc_elt_ops.h"
 #include "doc_stream.h"
 #include "doc_tree.h"
+#include "merge_map.h"
 #include "merge_delta.h"
 
 typedef struct doc_elt
@@ -104,6 +105,36 @@ doc_elt_compare (doc_elt *elt_a, doc_src s1, doc_elt *elt_b, doc_src s2)
       debug_msg (DOC_ELT, 3, "ops: %d", status);
     }
   return status;
+}
+static inline map_set
+doc_elt_get_map_set (doc_elt *elt)
+{
+  doc_elt_ops *ops = doc_elt_get_ops(elt);
+  doc_elt_ops_get_map_set get_map_set = doc_elt_ops_get_get_map_set (ops);
+
+  if (get_map_set == NULL)
+    {
+      return NO_MAP_SET;
+    }
+  else
+    {
+      return get_map_set(elt);
+    }
+}
+
+static inline map_key
+doc_elt_get_map_key (doc_elt *elt)
+{
+  doc_elt_ops *ops = doc_elt_get_ops (elt);
+  doc_elt_ops_get_map_key get_map_key = doc_elt_ops_get_get_map_key (ops);
+  map_key key = 0;
+
+  if (get_map_key != NULL)
+    {
+      key = get_map_key(elt);
+    }
+
+  return key;
 }
 
 #endif
