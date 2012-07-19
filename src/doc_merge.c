@@ -338,7 +338,7 @@ note_delete (struct context *ctxt, OFFSET xoff)
   ctxt->m_state[xoff] = doc_unmapped;
   return;
 }
-{
+
 static void
 note_insert (struct context *ctxt, OFFSET yoff)
 {
