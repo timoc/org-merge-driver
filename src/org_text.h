@@ -3,25 +3,24 @@
 
 #include "doc_elt.h"
 #include "doc_stream.h"
-#include "merge_delta.h"
+#include "doc_ref.h"
 
 struct org_text;
 typedef struct org_text org_text;
 
-org_text *org_text_create_empty ();
+/* Constructor, destructor */
+org_text *org_text_create_empty (doc_elt_ops *ops);
 void org_text_free (org_text * self);
 
-/**
- * @brief Append characters from string to org_text.
- * 
- * The first num characters in str are copied out of str into new
- * memory.  After this function is called, it is safe to dispose of
- * str.
- */
-void org_text_strncat (org_text *self, char *str, size_t num);
+void org_text_initversion (org_text *text, doc_src src);
+bool org_text_containsversion (org_text *text, doc_src src);
 
-char *org_text_get_text (org_text *self);
+/* doc_elt_ops implementation */
+typedef struct doc_elt_ops doc_elt_ops;
+extern doc_elt_ops org_text_ops;
 
-size_t org_text_get_text_size (org_text *self);
+void org_text_set_text (org_text *text, char *string, size_t length, doc_src src);
+char *org_text_get_text (org_text *text, doc_src src);
+size_t org_text_get_length (org_text *text, doc_src src);
 
 #endif
