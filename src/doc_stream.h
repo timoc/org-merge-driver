@@ -7,6 +7,10 @@
 
 #include <stdio.h>
 
+/**
+ * @todo write safe wrapper macros.
+ */
+
 #define doc_stream FILE
 #define doc_stream_open fopen
 #define doc_stream_close fclose
