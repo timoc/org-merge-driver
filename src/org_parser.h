@@ -6,7 +6,9 @@
 #define ORG_PARSER_H
 
 #include <stdio.h>
-#include "doc_tree.h"
+//#include "org_lexer.h"
+
+#include "org_document.h"
 
 struct doc_elt;
 typedef struct doc_elt doc_elt;
@@ -19,12 +21,12 @@ typedef struct doc_elt doc_elt;
 /**
  * @brief parse a FILE stream into a doc_tree.
  */
-doc_tree *org_parse_file_stream (FILE * file);
+org_document *org_parse_file_stream (FILE * file, doc_src src);
 
 /**
  * Token declaration for the lexer & parser.
  */
-typedef enum TOKEN 
+typedef enum TOKEN
   {
     QUIT = 0,
     NOTHING,
@@ -32,6 +34,12 @@ typedef enum TOKEN
     ORG_TEXT         /* regular text under a heading */
   } TOKEN;
 
-#define YYEXTRATYPE doc_elt*
-
+struct extra
+{
+  doc_elt *elt;
+  doc_elt *curr_elt;
+  TOKEN curr_type;
+  void *data;
+  doc_src src;
+};
 #endif
