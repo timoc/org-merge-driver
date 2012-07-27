@@ -8,13 +8,13 @@
 #include <stdlib.h>
 #include <stdbool.h>
 #include <assert.h>
-#include "doc_stream.h"
-#include "merge_delta.h"
-#include "merge_map.h"
-#include "merge_print_ctxt.h"
 
-struct doc_elt;
+#include "doc_stream.h"
+#include "doc_elt.h"
+#include "doc_ref.h"
+
 typedef struct doc_elt doc_elt;
+typedef struct print_ctxt print_ctxt;
 
 typedef enum doc_elt_compare_result
   {
@@ -24,21 +24,29 @@ typedef enum doc_elt_compare_result
     elt_compare_b_updated
   } doc_elt_compare_result;
 
-typedef void(* doc_elt_ops_print)( doc_elt *, void *, doc_stream *);
-typedef void(* doc_elt_ops_merge_print)(merge_delta *, merge_print_ctxt *, doc_stream *);
-typedef doc_elt_compare_result (* doc_elt_ops_compare)(doc_elt *, doc_src, doc_elt *, doc_src);
-typedef int (* doc_elt_ops_is_related)(doc_elt *, doc_src, doc_elt *, doc_src, void *);
-typedef map_set (* doc_elt_ops_get_map_set)(doc_elt *);
-typedef map_key (* doc_elt_ops_get_map_key)(doc_elt *);
+/* Printing */
+typedef void (doc_elt_ops_print) (doc_ref*, print_ctxt *, doc_stream *);
+
+/* comparing */
+typedef int (doc_elt_ops_compare)(doc_elt *, doc_src, doc_elt*, doc_src);
+typedef bool (doc_elt_ops_isrelated) (doc_elt *, doc_src, doc_elt *, doc_src, void *);
+
+/* merging */
+typedef void (doc_elt_ops_merge) (doc_elt *, doc_elt *, doc_src);
+typedef bool (doc_elt_ops_isupdated) (doc_ref *);
+typedef void (doc_elt_ops_unmapped) (doc_elt*);
 
 typedef struct doc_elt_ops
 {
-  doc_elt_ops_print       print;
-  doc_elt_ops_merge_print merge_print;
-  doc_elt_ops_compare     compare;
-  doc_elt_ops_is_related  is_related;
-  doc_elt_ops_get_map_set get_map_set;
-  doc_elt_ops_get_map_key get_map_key;
+  /* printing */
+  doc_elt_ops_print     *print;         /*< print an element */
+  /* comparing */
+  doc_elt_ops_compare   *compare;       /*< see if element is updated */
+  doc_elt_ops_isrelated *isrelated;     /*< if elements can be mapped */
+  /* merging */
+  doc_elt_ops_merge     *merge;         /*< merge an element and all its children */
+  doc_elt_ops_isupdated *isupdated;     /*< check if an element (or children) is updated */
+  doc_elt_ops_unmapped  *mark_unmapped; /*< notify an element it is not mapped */
 } doc_elt_ops;
 
 static inline doc_elt_ops *
@@ -54,7 +62,7 @@ doc_elt_ops_free (doc_elt_ops *ops)
   free (ops);
 }
 
-static inline doc_elt_ops_print
+static inline doc_elt_ops_print*
 doc_elt_ops_get_print (doc_elt_ops *ops)
 {
   assert (ops != NULL);
@@ -68,22 +76,7 @@ doc_elt_ops_set_print (doc_elt_ops *ops, doc_elt_ops_print print)
   ops->print = print;
 }
 
-static inline doc_elt_ops_merge_print
-doc_elt_ops_get_merge_print (doc_elt_ops *ops)
-{
-  assert (ops != NULL);
-  return ops->merge_print;
-}
-
-static inline void
-doc_elt_ops_set_merge_print (doc_elt_ops *ops,
-			     doc_elt_ops_merge_print merge_print)
-{
-  assert (ops != NULL); 
-  ops->merge_print = merge_print;
-}
-
-static inline doc_elt_ops_compare
+static inline doc_elt_ops_compare*
 doc_elt_ops_get_compare (doc_elt_ops *ops)
 {
   assert (ops != NULL);
@@ -98,58 +91,63 @@ doc_elt_ops_set_compare (doc_elt_ops *ops, doc_elt_ops_compare compare)
   return;
 }
 
-static inline doc_elt_ops_is_related
-doc_elt_ops_get_is_related (doc_elt_ops *ops)
+static inline doc_elt_ops_isrelated*
+doc_elt_ops_get_isrelated (doc_elt_ops *ops)
 {
   assert (ops != NULL);
-  return ops->is_related;
+  return ops->isrelated;
 }
 
 static inline void
-doc_elt_ops_set_is_related (doc_elt_ops *ops, doc_elt_ops_is_related is_related)
+doc_elt_ops_set_isrelated (doc_elt_ops *ops, doc_elt_ops_isrelated isrelated)
 {
   assert (ops != NULL);
-  ops->is_related = is_related;
+  ops->isrelated = isrelated;
   return;
 }
 
-/**
- * Get the get_map_set operator of an ops struct.
- */
-static inline doc_elt_ops_get_map_set
-doc_elt_ops_get_get_map_set (doc_elt_ops *ops)
+static inline doc_elt_ops_merge*
+doc_elt_ops_get_merge (doc_elt_ops *ops)
 {
   assert (ops != NULL);
-  return ops->get_map_set;
+  return ops->merge;
 }
 
-/**
- * Set the get_map_set operator of an ops struct.
- */
 static inline void
-doc_elt_ops_set_get_map_set (doc_elt_ops *ops, doc_elt_ops_get_map_set get_map_set)
+doc_elt_ops_set_merge (doc_elt_ops *ops, doc_elt_ops_merge merge)
 {
   assert (ops != NULL);
-  ops->get_map_set = get_map_set;
+  ops->merge = merge;
   return;
 }
 
-/**
- * Get the get_map_key operator of an ops struct.
- */
-static inline doc_elt_ops_get_map_key
-doc_elt_ops_get_get_map_key (doc_elt_ops *ops)
+static inline doc_elt_ops_isupdated*
+doc_elt_ops_get_isupdated (doc_elt_ops *ops)
 {
   assert (ops != NULL);
-  return ops->get_map_key;
+  return ops->isupdated;
 }
-/**
- * Set the get_map_key operator of an ops struct.
- */
+
 static inline void
-doc_elt_ops_set_get_map_key (doc_elt_ops *ops, doc_elt_ops_get_map_key get_map_key)
+doc_elt_ops_set_isupdated (doc_elt_ops *ops, doc_elt_ops_isupdated isupdated)
 {
   assert (ops != NULL);
-  ops->get_map_key = get_map_key;
+  ops->isupdated = isupdated;
+  return;
+}
+
+static inline doc_elt_ops_unmapped*
+doc_elt_ops_get_unmapped (doc_elt_ops *ops)
+{
+  assert (ops != NULL);
+  return ops->mark_unmapped;
+}
+
+static inline void
+doc_elt_ops_set_unmapped (doc_elt_ops *ops, doc_elt_ops_unmapped unmapped)
+{
+  assert (ops != NULL);
+  ops->mark_unmapped = unmapped;
+  return;
 }
 #endif
