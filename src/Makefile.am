@@ -12,9 +12,10 @@ org_merge_driver_SOURCES = \
 	print.c        \
 	org_document.c \
 	org_heading.c  \
-	org_text.c
+	org_text.c     \
+	smerger.c
 
-org_merge_driver_CFLAGS = -O1 -I$(top_srcdir)/gnulib/lib
+org_merge_driver_CFLAGS = -O0 -I$(top_srcdir)/gnulib/lib
 org_merge_driver_LDADD = $(top_srcdir)/gnulib/lib/libgnu.a
 
 org_lexer.h: org_lexer.l
