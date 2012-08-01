@@ -11,7 +11,7 @@
 #include "doc_elt.h"
 #include "doc_elt_ops.h"
 #include "org_parser.h"
-
+#include "smerger.h"
 int
 main (int argc, char *argv[])
 {
@@ -61,15 +61,18 @@ main (int argc, char *argv[])
 #endif
 	      debug_msg (MAIN, 4, "Merging Files\n\n");
 	      debug_msg (MAIN, 4, "Merging anc and loc\n");
-	      org_document_merge (anc, loc);
+	      merge_ctxt ctxt1;
+	      ctxt1.global_smerger = smerger_create ();
+	      org_document_merge (anc, loc, &ctxt1);
 	      debug_msg (MAIN, 4, "Merging anc and rem\n");
-	      org_document_merge (anc, rem);
+	      merge_ctxt ctxt2;
+	      ctxt2.global_smerger = smerger_create ();
+	      org_document_merge (anc, rem, &ctxt2);
 
 	      struct print_ctxt ctxt;
 	      print_ctxt_init (&ctxt);
 	      debug_msg (MAIN, 3, "Printing Ancestor\n\n");
 	      org_document_print (anc, &ctxt, stdout);
-
 	      /*
 	      debug_msg (MAIN, 4, "Printing Files\n\n");
 	      merge_print_ctxt mp_ctxt;
