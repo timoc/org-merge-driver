@@ -41,7 +41,7 @@ void headline_aoeaoe (org_heading *heading, char *string, size_t len, yyscan_t s
   TOKEN temp = yyextra->curr_type;
 
   /* create a new element */
-  yyextra->curr_type = ORG_TEXT;
+  yyextra->curr_type = T_ORG_TEXT;
   yyextra->curr_elt = (doc_elt *) org_text_create_empty (&org_text_ops);
   org_text_initversion ( (org_text *) yyextra->curr_elt, yyextra->src);
 
@@ -54,7 +54,7 @@ void headline_aoeaoe (org_heading *heading, char *string, size_t len, yyscan_t s
   org_text_set_text((org_text *) yyextra->elt, new_string, size + yyleng, yyextra->src);
 
   /* return the previous element, if there was one */
-  if (temp != NOTHING)
+  if (temp != T_NOTHING)
     {
       return temp;
     }
@@ -74,7 +74,7 @@ void headline_aoeaoe (org_heading *heading, char *string, size_t len, yyscan_t s
 
   /* create the new element */
   yyextra->curr_elt =  (doc_elt *) org_heading_create_empty (&org_heading_ops);
-  yyextra->curr_type = ORG_HEADING;
+  yyextra->curr_type = T_ORG_HEADING;
   org_heading_initversion ((org_heading *)yyextra->curr_elt, yyextra->src);
   org_heading_set_level ((org_heading *) yyextra->curr_elt, yyleng - 1, yyextra->src);
   BEGIN (heading);
@@ -116,10 +116,10 @@ void headline_aoeaoe (org_heading *heading, char *string, size_t len, yyscan_t s
 <text>.*"\n"? {
   debug_msg (LEXER, 5, "text finish line\n");
 
-  TOKEN temp = NOTHING;
+  TOKEN temp = T_NOTHING;
 
   /* append this line of text */
-  if (yyextra->curr_type != ORG_TEXT)
+  if (yyextra->curr_type != T_ORG_TEXT)
     {
       /* Create a temporary data store */
       temp = yyextra->curr_type;
@@ -127,7 +127,7 @@ void headline_aoeaoe (org_heading *heading, char *string, size_t len, yyscan_t s
 
       debug_msg (LEXER, 5, "text create new\n");
       /* create a new element */
-      yyextra->curr_type = ORG_TEXT;
+      yyextra->curr_type = T_ORG_TEXT;
       yyextra->curr_elt = (doc_elt *) org_text_create_empty (&org_text_ops);
       org_text_initversion ( (org_text *) yyextra->curr_elt, yyextra->src);
     }
@@ -143,7 +143,7 @@ void headline_aoeaoe (org_heading *heading, char *string, size_t len, yyscan_t s
   BEGIN(INITIAL);
 
   /* return the previous element, if there was one */
-  if (temp != NOTHING)
+  if (temp != T_NOTHING)
     {
       debug_msg (LEXER, 3, "element return\n");
       return temp;
@@ -156,10 +156,10 @@ void headline_aoeaoe (org_heading *heading, char *string, size_t len, yyscan_t s
 ^"\n" {
   debug_msg (LEXER, 5, "text add newline\n");
 
-  TOKEN temp = NOTHING;
+  TOKEN temp = T_NOTHING;
 
   /* append this line of text */
-  if (yyextra->curr_type != ORG_TEXT)
+  if (yyextra->curr_type != T_ORG_TEXT)
     {
       /* Create a temporary data store */
       temp = yyextra->curr_type;
@@ -167,7 +167,7 @@ void headline_aoeaoe (org_heading *heading, char *string, size_t len, yyscan_t s
 
       debug_msg (LEXER, 5, "text create new\n");
       /* create a new element */
-      yyextra->curr_type = ORG_TEXT;
+      yyextra->curr_type = T_ORG_TEXT;
       yyextra->curr_elt = (doc_elt *) org_text_create_empty (&org_text_ops);
       org_text_initversion ( (org_text *) yyextra->curr_elt, yyextra->src);
     }
@@ -183,7 +183,7 @@ void headline_aoeaoe (org_heading *heading, char *string, size_t len, yyscan_t s
   BEGIN(INITIAL);
 
   /* return the previous element, if there was one */
-  if (temp != NOTHING)
+  if (temp != T_NOTHING)
     {
       debug_msg (LEXER, 3, "element return\n");
       return temp;
