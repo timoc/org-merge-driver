@@ -9,3 +9,7 @@
 /stdbool.m4
 /xsize.m4
 /minmax.m4
+/include_next.m4
+/longlong.m4
+/multiarch.m4
+/stdint.m4

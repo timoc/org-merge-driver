@@ -27,7 +27,7 @@
 
 
 # Specification in the form of a command-line invocation:
-#   gnulib-tool --import --dir=. --lib=libgnu --source-base=gnulib/lib --m4-base=m4 --doc-base=gnulib/doc --tests-base=gnulib/tests --aux-dir=config --no-conditional-dependencies --no-libtool --macro-prefix=gl array-list diffseq minmax
+#   gnulib-tool --import --dir=. --lib=libgnu --source-base=gnulib/lib --m4-base=m4 --doc-base=gnulib/doc --tests-base=gnulib/tests --aux-dir=config --no-conditional-dependencies --no-libtool --macro-prefix=gl array-list diffseq minmax rb_list rbtree-list rbtreehash-list
 
 # Specification in the form of a few gnulib-tool.m4 macro invocations:
 gl_LOCAL_DIR([])
@@ -35,6 +35,9 @@ gl_MODULES([
   array-list
   diffseq
   minmax
+  rb_list
+  rbtree-list
+  rbtreehash-list
 ])
 gl_AVOID([])
 gl_SOURCE_BASE([gnulib/lib])
