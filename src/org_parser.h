@@ -28,10 +28,10 @@ org_document *org_parse_file_stream (FILE * file, doc_src src);
  */
 typedef enum TOKEN
   {
-    QUIT = 0,
-    NOTHING,
-    ORG_HEADING,
-    ORG_TEXT         /* regular text under a heading */
+    T_QUIT = 0,
+    T_NOTHING,
+    T_ORG_HEADING,
+    T_ORG_TEXT         /* regular text under a heading */
   } TOKEN;
 
 struct extra

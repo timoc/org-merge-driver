@@ -46,7 +46,7 @@ org_parse_file_stream (FILE * file, doc_src src)
   struct extra e;
   e.elt = NULL;
   e.curr_elt = NULL;
-  e.curr_type = NOTHING;
+  e.curr_type = T_NOTHING;
   e.src = src;
   yyset_extra (&e, scanner);
 
@@ -89,12 +89,12 @@ rec_parse_document (yyscan_t scanner, org_document *this)
   /* Parse the file */
   while(!exit)
     {
-      if (tok == NOTHING)
+      if (tok == T_NOTHING)
 	{
 	  debug_msg (PARSER, 3, "Got Nothing\n");
 	  /* do nothing */
 	}
-      else if (tok == ORG_HEADING)
+      else if (tok == T_ORG_HEADING)
 	{
 	  int next_level = org_heading_get_level ((org_heading *) elt, src);
 	  if (next_level <= 0)
@@ -112,7 +112,7 @@ rec_parse_document (yyscan_t scanner, org_document *this)
 		rec_parse_heading(scanner, (org_heading *) elt, next_level);
 	    }
 	}
-      else if (tok == ORG_TEXT)
+      else if (tok == T_ORG_TEXT)
 	{
 	  debug_msg (PARSER, 3, "Got Text\n");
 	  /* eat up all text elements below this one */
@@ -123,12 +123,12 @@ rec_parse_document (yyscan_t scanner, org_document *this)
 	  elt = yyget_extra (scanner) -> elt;
 	}
 
-      if (tok == QUIT || elt == NULL)
+      if (tok == T_QUIT || elt == NULL)
 	{
 	  /* break if at the end of the file */
 	  ret = NULL;
 	  exit = true;
-	  tok = QUIT;
+	  tok = T_QUIT;
 	  elt = NULL;
 	}
     }
@@ -161,13 +161,13 @@ rec_parse_heading(yyscan_t scanner, org_heading *this, int this_level)
   /* Parse the file */
   while(!exit)
     {
-      if (tok == NOTHING)
+      if (tok == T_NOTHING)
 	{
 
 	  debug_msg (PARSER, 3, "Got Nothing\n");
 	  /* do nothing */
 	}
-      else if (tok == ORG_HEADING)
+      else if (tok == T_ORG_HEADING)
 	{
 	  int next_level = org_heading_get_level ((org_heading *)elt, src);
 	  //int next_level = 1;
@@ -185,7 +185,7 @@ rec_parse_heading(yyscan_t scanner, org_heading *this, int this_level)
 		rec_parse_heading(scanner, (org_heading *)elt, next_level);
 	    }
 	}
-      else if (tok == ORG_TEXT)
+      else if (tok == T_ORG_TEXT)
 	{
 	  debug_msg (PARSER, 3, "Got Text\n");
 
@@ -196,12 +196,12 @@ rec_parse_heading(yyscan_t scanner, org_heading *this, int this_level)
 	  elt = yyget_extra (scanner)-> elt;
 	}
 
-      if (tok == QUIT || elt == NULL)
+      if (tok == T_QUIT || elt == NULL)
 	{
 	  /* break if at the end of the file */
 	  ret = NULL;
 	  exit = true;
-	  tok = QUIT;
+	  tok = T_QUIT;
 	  elt = NULL;
 	}
     }
