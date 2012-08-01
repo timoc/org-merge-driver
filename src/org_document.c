@@ -28,7 +28,6 @@ static doc_elt_ops_isrelated org_isrelated_op;
 static doc_elt_ops_compare   org_compare_op;
 static doc_elt_ops_merge     org_merge_op;
 static doc_elt_ops_isupdated org_isupdated_op;
-static doc_elt_ops_unmapped  org_unmapped_op;
 
 /* Declaration of org_element operations table */
 doc_elt_ops org_document_ops = {
@@ -39,8 +38,7 @@ doc_elt_ops org_document_ops = {
   .compare       = &org_compare_op,
   /* merging */
   .merge         = &org_merge_op,
-  .isupdated     = &org_isupdated_op,
-  .mark_unmapped = &org_unmapped_op,
+  .isupdated     = &org_isupdated_op
 };
 
 /* Constructor, Destructor */
@@ -49,6 +47,7 @@ org_document_create_empty (doc_elt_ops *ops)
 {
   org_document *d = malloc (sizeof (org_document));
   doc_elt_set_ops (&(d->elt), ops);
+  doc_elt_set_type (&(d->elt), ORG_DOCUMENT);
   d->subheadings = gl_list_nx_create_empty (GL_ARRAY_LIST, NULL,
 					    NULL, NULL, true);
   d->subtext = gl_list_nx_create_empty (GL_ARRAY_LIST, NULL,
@@ -97,13 +96,13 @@ org_document_print (org_document *doc, print_ctxt *ctxt, doc_stream *out)
 }
 
 void
-org_document_merge (org_document *anc, org_document *desc)
+org_document_merge (org_document *anc, org_document *desc, merge_ctxt *ctxt)
 {
   debug_msg (DOC_ELT, 3, "Merging org_document\n");
   debug_msg (DOC_ELT, 5, "Merging text\n");
-  doc_reflist_merge (anc->subtext, desc->subtext);
+  doc_reflist_merge (anc->subtext, desc->subtext, ctxt);
   debug_msg (DOC_ELT, 3, "Merging headings\n");
-  doc_reflist_merge (anc->subheadings, desc->subheadings);
+  doc_reflist_merge (anc->subheadings, desc->subheadings, ctxt);
   return;
 }
 
@@ -120,7 +119,7 @@ org_print_op (doc_ref *ref, print_ctxt *ctxt, doc_stream *out)
 }
 
 static bool
-org_isrelated_op (doc_elt *local, doc_src sl, doc_elt *remote, doc_src sr, void *context)
+org_isrelated_op (doc_ref *local, doc_ref *remote, void *context)
 {
   /* all org_documents are relatable */
   return true;
@@ -134,7 +133,7 @@ org_compare_op (doc_elt *a, doc_src a_src, doc_elt *b, doc_src b_src)
 }
 
 static void
-org_merge_op (doc_elt *a, doc_elt *b, doc_src b_src)
+org_merge_op (doc_ref *a, doc_ref *b, merge_ctxt *ctxt)
 {
   /**
    * @todo actually merge things
@@ -151,11 +150,4 @@ org_isupdated_op (doc_ref *a)
   /* check if the children are updated */
   /* check if this element is updated */
   return true;
-}
-
-static void
-org_unmapped_op (doc_elt *elt)
-{
-  /* mark all the children as unmapped/ */
-  return;
 }

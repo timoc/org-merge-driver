@@ -28,6 +28,6 @@ void org_document_add_text_last (org_document *document, doc_src src, org_text *
 void org_document_add_heading_last (org_document *document, doc_src src, org_heading *text);
 
 void org_document_print (org_document *doc, print_ctxt *ctxt, doc_stream *out);
-void org_document_merge (org_document *anc, org_document *desc);
+void org_document_merge (org_document *anc, org_document *desc, merge_ctxt *ctxt);
 
 #endif /* ORG_DOCUMENT_H */
