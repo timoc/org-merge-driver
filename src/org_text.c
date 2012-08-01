@@ -21,7 +21,10 @@ static doc_elt_ops_isrelated org_text_isrelated_op;
 static doc_elt_ops_compare   org_text_compare_op;
 static doc_elt_ops_merge     org_text_merge_op;
 static doc_elt_ops_isupdated org_text_isupdated_op;
-static doc_elt_ops_unmapped  org_text_unmapped_op;
+static doc_elt_ops_note_delete org_text_note_delete;
+static doc_elt_ops_note_insert org_text_note_insert;
+static doc_elt_ops_get_key     org_text_get_key;
+
 
 /* Declaration of org_element operations table */
 doc_elt_ops org_text_ops = {
@@ -33,7 +36,10 @@ doc_elt_ops org_text_ops = {
   /* merging */
   .merge         = &org_text_merge_op,
   .isupdated     = &org_text_isupdated_op,
-  .mark_unmapped = &org_text_unmapped_op,
+  .note_delete   = &org_text_note_delete,
+  .note_insert   = &org_text_note_insert,
+  /* Global mapping */
+  .get_key       = &org_text_get_key
 };
 
 typedef struct org_text
@@ -55,6 +61,7 @@ org_text_create_empty (doc_elt_ops *ops)
 {
   org_text *txt   = calloc (1, sizeof (org_text));
   doc_elt_set_ops (&(txt->elt), ops);
+  doc_elt_set_type ((doc_elt *) txt, ORG_TEXT);
   return txt;
 }
 
@@ -203,10 +210,10 @@ org_text_print_op (doc_ref *ref, print_ctxt *ctxt, doc_stream *out)
 	      else
 		{
 		  /* Updated in local, deleted in remote. Conflict ! */
-		  enter_content_conflict (ctxt, local_side, "Updated\n", out);
+		  enter_structural_conflict (ctxt, local_side, "Updated\n", out);
 		  substrprint (loc_data->text, out);
-		  enter_content_conflict (ctxt, remote_side, NULL, out);
-		  enter_content_conflict (ctxt, no_conflict, "Deleted\n", out);
+		  enter_structural_conflict (ctxt, remote_side, NULL, out);
+		  enter_structural_conflict (ctxt, no_conflict, "Deleted\n", out);
 		}
 	    }
 	}
@@ -221,10 +228,10 @@ org_text_print_op (doc_ref *ref, print_ctxt *ctxt, doc_stream *out)
 	      else
 		{
 		  /* Updated in remote, deleted in local */
-		  enter_content_conflict (ctxt, local_side, "Deleted\n", out);
-		  enter_content_conflict (ctxt, remote_side, NULL, out);
+		  enter_structural_conflict (ctxt, local_side, "Deleted\n", out);
+		  enter_structural_conflict (ctxt, remote_side, NULL, out);
 		  substrprint (rem_data->text, out);
-		  enter_content_conflict (ctxt, no_conflict, "Updated\n", out);
+		  enter_structural_conflict (ctxt, no_conflict, "Updated\n", out);
 		}
 	    }
 	  else
@@ -280,16 +287,25 @@ org_text_print_op (doc_ref *ref, print_ctxt *ctxt, doc_stream *out)
 }
 
 static bool
-org_text_isrelated_op (doc_elt *a, doc_src a_src, doc_elt *b, doc_src b_src, void *ctxt)
+org_text_isrelated_op (doc_ref *a_ref, doc_ref *b_ref, void *ctxt)
 {
-  /* Two elements are related if they represent different versions of
-   * the same element.  Text objects are always related to eachother.
+  /* Two text elements are related if they represent different
+   * versions of the same element.  Text objects are always related to
+   * each other.
    */
 
-  /**
-   * @todo Implement type-based comparisons for org_text_isrelated.
-   */
-  return true;
+  bool isrelated = false;
+
+  doc_elt *elt_a = doc_ref_get_elt (a_ref);
+  doc_elt *elt_b = doc_ref_get_elt (b_ref);
+
+  if ((doc_elt_get_type (elt_a) == ORG_TEXT) && 
+      (doc_elt_get_type (elt_b) == ORG_TEXT))
+    {
+      isrelated = true;
+    }
+
+  return isrelated;
 }
 
 static int
@@ -299,20 +315,34 @@ org_text_compare_op (doc_elt *a, doc_src a_src, doc_elt *b, doc_src b_src)
    * @todo Implement org_text_compare_op.
    */
 
-  return -1;
+  return 0;
 }
 
 static void
-org_text_merge_op (doc_elt *a_elt, doc_elt *b_elt, doc_src b_src)
+org_text_merge_op (doc_ref *a_ref, doc_ref *b_ref, merge_ctxt *ctxt)
 {
+
   /**
    * @todo Ensure both elt's are org_text when merging.
    */
 
-  org_text *a_text = (org_text *)a_elt;
-  org_text *b_text = (org_text *)b_elt;
-  size_t i = srctoindex(b_src);
-  a_text->data[i] = b_text->data[i];
+  debug_msg (DOC_ELT, 5, "Merging org_text\n");
+
+  org_text *a_text = (org_text *) doc_ref_get_elt (a_ref);
+  org_text *b_text = (org_text *) doc_ref_get_elt (b_ref);
+
+  assert (a_text != NULL);
+  assert (b_text != NULL);
+
+  /* Merge data from b into a */
+  int i = 0;
+  for (i = 0; i < 3; i++)
+    {
+      if (a_text->data[i] == NULL)
+	a_text->data[i] = b_text->data[i];
+    }
+
+  /* There is no other data to merge, so return; */
   return;
 }
 
@@ -346,6 +376,7 @@ org_text_isupdated_op (doc_ref *ref)
     }
   else
     {
+      /* if the node was inserted, ie. one new node */
       if ((loc_data != NULL) || (rem_data != NULL))
 	{
 	  isupdated = true;
@@ -354,11 +385,27 @@ org_text_isupdated_op (doc_ref *ref)
   return isupdated;
 }
 
+
 static void
-org_text_unmapped_op (doc_elt *elt)
+org_text_note_delete (doc_ref *ref, merge_ctxt *ctxt)
 {
-  /* mark all the children as unmapped */
-  /* perform global matching */
-  /* org_text does neither, so just exit */
+  /* org_text does not perform any fallback matching technique.
+     Do nothing. */
   return;
+}
+
+static void
+org_text_note_insert (doc_ref *ref, merge_ctxt *ctxt)
+{
+  /* org_text does not have global matching, do nothing */
+  return;
+}
+
+static doc_key *
+org_text_get_key (doc_elt * elt)
+{
+  /* org_text does not have global matching, do nothing */
+  /* this function should never be called? */
+  abort ();
+  return NULL;
 }
