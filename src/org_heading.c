@@ -57,20 +57,25 @@ static doc_elt_ops_isrelated org_heading_isrelated_op;
 static doc_elt_ops_compare   org_heading_compare_op;
 static doc_elt_ops_merge     org_heading_merge_op;
 static doc_elt_ops_isupdated org_heading_isupdated_op;
-static doc_elt_ops_unmapped  org_heading_unmapped_op;
+static doc_elt_ops_note_delete org_heading_note_delete;
+static doc_elt_ops_note_insert org_heading_note_insert;
+static doc_elt_ops_get_key     org_heading_get_key;
 
 doc_elt_ops org_heading_ops = {
-/* printing */
-.print         = &org_heading_print_op,
+  /* printing */
+  .print         = &org_heading_print_op,
 
- /* comparing */
-   .isrelated     = &org_heading_isrelated_op,
-   .compare       = &org_heading_compare_op,
+  /* comparing */
+  .isrelated     = &org_heading_isrelated_op,
+  .compare       = &org_heading_compare_op,
 
- /* merging */
-   .merge         = &org_heading_merge_op,
-   .isupdated     = &org_heading_isupdated_op,
-   .mark_unmapped = &org_heading_unmapped_op,
+  /* merging */
+  .merge         = &org_heading_merge_op,
+  .isupdated     = &org_heading_isupdated_op,
+  .note_delete   = &org_heading_note_delete,
+  .note_insert   = &org_heading_note_insert,
+  /* Global mapping */
+  .get_key       = &org_heading_get_key
 };
 
 /* Core org_heading struct */
@@ -96,6 +101,7 @@ typedef struct org_heading
   bool              moved[2];     /*< Indicates if a corresponding vesion was moved */
   gl_list_t         subtext;      /*< A list of children text elements. */
   gl_list_t         subheadings;  /*< A list of children heading elements. */
+  doc_key           key;
 } org_heading;
 
 /**
@@ -117,6 +123,8 @@ org_heading_create_empty (doc_elt_ops *elt_ops)
 
   h->subheadings = gl_list_nx_create_empty (GL_ARRAY_LIST, NULL, NULL, NULL, true);
   h->subtext     = gl_list_nx_create_empty (GL_ARRAY_LIST, NULL, NULL, NULL, true);
+  h->key.string = NULL;
+  h->key.length = 0;
   return h;
 }
 
@@ -146,6 +154,7 @@ static org_heading_data *
 org_heading_data_create_empty ()
 {
   org_heading_data *h = calloc (1, sizeof (org_heading_data));
+  doc_elt_set_type ((doc_elt *) h, ORG_HEADING);
   h->properties =  gl_list_nx_create_empty (GL_ARRAY_LIST, NULL, NULL, NULL, true);
   h->tags       =  gl_list_nx_create_empty (GL_ARRAY_LIST, NULL, NULL, NULL, true);
   return h;
@@ -278,6 +287,8 @@ org_heading_set_text (org_heading *self, char *string, int length, doc_src src)
 	{
 	  if (string[i] == ':')
 	    {
+	      self->key.string = (string + i);
+	      self->key.length = length - i;
 	      data->body_text.length = i - 1;
 	      break;
 	    }
@@ -384,30 +395,90 @@ org_heading_add_property_empty (char *string, doc_src src)
  */
 
 static bool
-org_heading_isrelated_op (doc_elt *a_elt, doc_src a_src, doc_elt *b_elt, doc_src b_src, void *context)
+org_heading_isrelated_op (doc_ref *a_ref, doc_ref *b_ref, void *context)
 {
-
-  /**
-   * @todo Make org_heading_isrelated_op check for matching doc_elt_types.
+  /* isrelated is used by various matching algorithms to see if the
+   * elements stored at two refs are related.  Two elements are
+   * related if they represent different versions of the same
+   * elements.
+   *
+   * Two headings are the same if they share a key.  If neither has a
+   * key, the body text of the heading is used.
    */
 
-  org_heading      *a_heading = (org_heading *)a_elt;
-  org_heading_data *a_data    = a_heading->data[srctoindex(a_src)];
-  org_heading      *b_heading = (org_heading *)b_elt;
-  org_heading_data *b_data    = b_heading->data[srctoindex(b_src)];
+  doc_elt *elt_a = doc_ref_get_elt (a_ref);
+  doc_elt *elt_b = doc_ref_get_elt (b_ref);
 
-  /**
-   * @todo Make org_heading_isrelated_op check for matching uid.
-   */
- 
-  /**
-   * @todo Make org_heading_isrelated_op skip over cookies.
-   */
+  bool isrelated = false;
 
-  /* Org_heading will skip over cookies in the body_text when testing
-     for is_related.  Cookies are wrapped in square brackets. */
-  
-  return (substreql(a_data->body_text, b_data->body_text));
+  /* Before we can compare the elements as headings, we must make sure
+     that both are, in fact, actually headings.  For this function to
+     be called, at least one element should be a heading.
+  */
+  if (doc_elt_get_type (elt_a) == doc_elt_get_type (elt_b))
+    {
+
+      doc_src a_src;
+      doc_src b_src;
+      org_heading      *a_heading = (org_heading *) doc_ref_get_elt (a_ref);
+      org_heading      *b_heading = (org_heading *) doc_ref_get_elt (b_ref);
+
+      org_heading_data *a_data;
+      org_heading_data *b_data;
+
+      /* use only a single src to check if they are equal, prioritizing
+	 using the ancestor */
+      if (doc_ref_contains (a_ref, ANC_SRC))
+	a_data = a_heading->data[srctoindex(ANC_SRC)];
+      else if (doc_ref_contains (a_ref, LOC_SRC))
+	a_data = a_heading->data[srctoindex(LOC_SRC)];
+      else if (doc_ref_contains (a_ref, REM_SRC))
+	a_data = a_heading->data[srctoindex(REM_SRC)];
+
+      if (doc_ref_contains (b_ref, ANC_SRC))
+	b_data = b_heading->data[srctoindex(ANC_SRC)];
+      else if (doc_ref_contains (b_ref, LOC_SRC))
+	b_data = b_heading->data[srctoindex(LOC_SRC)];
+      else if (doc_ref_contains (b_ref, REM_SRC))
+	b_data = b_heading->data[srctoindex(REM_SRC)];
+
+      assert (b_data && a_data);
+
+      /**
+       * @todo Make org_heading_isrelated_op check for matching uid.
+       */
+      /* if the heading has a UID, use to tell the difference */
+      /**
+       * @todo Make org_heading_isrelated_op skip over cookies.
+       */
+
+      /* Org_heading will skip over cookies in the body_text when testing
+	 for is_related.  Cookies are wrapped in square brackets. */
+      /* compare the key if it exists, use the heading body otherwise */
+      if (a_heading->key.length > 0)
+	{
+	  if (b_heading->key.length > 0)
+	    {
+	      isrelated = doc_key_eql (&(a_heading->key), &(b_heading->key));
+	    }
+	  else
+	    {
+	      isrelated = false;
+	    }
+	}
+      else
+	{
+	  if (b_heading->key.length > 0)
+	    {
+	      isrelated = false;
+	    }
+	  else
+	    {
+	      isrelated = (substreql(a_data->body_text, b_data->body_text));
+	    }
+	}
+    }
+  return isrelated;
 }
 
 static int
@@ -420,24 +491,61 @@ org_heading_compare_op (doc_elt *a, doc_src a_src, doc_elt *b, doc_src b_src)
 }
 
 static void
-org_heading_merge_op (doc_elt *a_elt, doc_elt *b_elt, doc_src b_src)
+org_heading_merge_op (doc_ref *a_ref, doc_ref *b_ref, merge_ctxt *ctxt)
 {
+
+  /* Merge both headings, copying in all data from b_ref to a_ref.
+   * Overwrite an org_heading data if one already exists.
+   */
+
   debug_msg (DOC_ELT, 3, "Merging org_heading\n");
 
-  org_heading *a_heading = (org_heading *)a_elt;
-  org_heading *b_heading = (org_heading *)b_elt;
+  org_heading *a_heading = (org_heading *) doc_ref_get_elt (a_ref);
+  org_heading *b_heading = (org_heading *) doc_ref_get_elt (b_ref);
 
   assert (a_heading != NULL);
   assert (b_heading != NULL);
-  assert (b_heading->data[srctoindex (b_src)] != NULL);
 
-  a_heading->data[srctoindex (b_src)] = b_heading->data[srctoindex (b_src)];
+  /* merge the data of the elements.  Ignore the doc_src sources, and
+   * check if the data exists in the heading to copy over */
+  if (b_heading->data[ANC_INDEX] != NULL)
+    a_heading->data[ANC_INDEX] = b_heading->data[ANC_INDEX];
 
+  if (b_heading->data[LOC_INDEX] != NULL)
+    a_heading->data[LOC_INDEX] = b_heading->data[LOC_INDEX];
+
+  if (b_heading->data[REM_INDEX] != NULL)
+    a_heading->data[REM_INDEX] = b_heading->data[REM_INDEX];
+
+  /* merge the doc_src of the elements */
+  /*
+    doc_ref_set_src (a_src, doc_ref_get_src (a_src) | doc_ref_get_src (b_src));
+    doc_ref_set_src (b_src, doc_ref_get_src (a_src) | doc_ref_get_src (b_src));
+  */
+
+  /*
+    if (doc_ref_contains (b_ref, ANC_SRC) && ((b_heading->moved[ANC_INDEX] == false)))
+    doc_ref_add_src (a_ref, LOC_SRC);
+
+    if (doc_ref_contains (b_ref, REM_SRC) && ((b_heading->moved[REM_INDEX] == false)))
+    doc_ref_add_src (a_ref, REM_SRC);
+
+    if (doc_ref_contains (b_ref, LOC_SRC) && ((b_heading->moved[LOC_INDEX] == false)))
+    doc_ref_add_src (a_ref, LOC_SRC);
+  */
+
+  /* Merge the movement flogs of the elements */
+  a_heading->moved[LOC_INDEX] = a_heading->moved[LOC_INDEX] || b_heading->moved[LOC_INDEX];
+  a_heading->moved[REM_INDEX] = a_heading->moved[REM_INDEX] || b_heading->moved[REM_INDEX];
+
+  /* Merge the children elements */
   debug_msg (DOC_ELT, 5, "Merging heading subtext\n");
-  doc_reflist_merge (a_heading->subtext, b_heading->subtext);
+  doc_reflist_merge (a_heading->subtext, b_heading->subtext, ctxt);
 
   debug_msg (DOC_ELT, 3, "Merging heading subheadings\n");
-  doc_reflist_merge (a_heading->subheadings, b_heading->subheadings);
+  doc_reflist_merge (a_heading->subheadings, b_heading->subheadings, ctxt);
+
+  /* the doc_refs are updated externally */
 
   return;
 }
@@ -483,14 +591,6 @@ org_heading_isupdated_op (doc_ref *ref)
   return isupdated;
 }
 
-
-static void
-org_heading_unmapped_op (doc_elt *elt)
-{
-  /* mark all the children as unmapped */
-  return;
-}
-
 /**
  * Compare the data in slot data_index with the ancestor data.  Try to
  * detect if the content has been updated.
@@ -505,7 +605,7 @@ org_heading_content_isupdated (org_heading *heading, size_t data_index)
    * @todo Check for add and delete operations.  These operations
    * count as updates according to this function.
    */
- 
+
   bool isupdated = false;
 
   if (anc_data != NULL)
@@ -569,16 +669,16 @@ org_heading_print_op (doc_ref *ref, print_ctxt *ctxt, doc_stream *out)
    *      X | Does not exist: The element is unassociated with the version.
    */
   org_heading *heading = (org_heading *)doc_ref_get_elt (ref);
- 
-  if ( heading->data[ANC_INDEX] != NULL) 
+
+  if ( heading->data[ANC_INDEX] != NULL)
     {
       if (heading->data[LOC_INDEX] != NULL)
         {
           if (heading->data[REM_INDEX] != NULL)
             {
               print_LU_RU (ref, ctxt, out);
-            } 
-          else 
+            }
+          else
             {
               print_LU_RD (ref, ctxt, out);
             }
@@ -602,8 +702,8 @@ org_heading_print_op (doc_ref *ref, print_ctxt *ctxt, doc_stream *out)
           if (heading->data[REM_INDEX] != NULL)
             {
               print_LI_RI (ref, ctxt, out);
-            } 
-          else 
+            }
+          else
             {
               print_LI_RX (ref, ctxt, out);
             }
@@ -718,7 +818,7 @@ print_LU_RD (doc_ref *ref, print_ctxt *ctxt, doc_stream *out)
 
   if (local_ishere)
     {
-      if (org_heading_content_isupdated (heading, LOC_INDEX) || 
+      if (org_heading_content_isupdated (heading, LOC_INDEX) ||
 	  org_heading_subelts_isupdated (heading))
         {
           enter_structural_conflict (ctxt, local_side, NULL, out);
@@ -733,7 +833,7 @@ print_LU_RD (doc_ref *ref, print_ctxt *ctxt, doc_stream *out)
 
 static inline void
 print_LD_RU (doc_ref *ref, print_ctxt *ctxt, doc_stream *out)
-{ 
+{
   debug_msg (DOC_ELT, 5, "Begin\n");
   doc_elt *elt = doc_ref_get_elt (ref);
   org_heading *heading = (org_heading *)elt;
@@ -743,7 +843,7 @@ print_LD_RU (doc_ref *ref, print_ctxt *ctxt, doc_stream *out)
   debug_msg (DOC_ELT, 5, "doc_ref = %d\n", doc_ref_get_src (ref));
   if (remote_ishere)
     {
-      if (org_heading_content_isupdated (heading, REM_INDEX) || 
+      if (org_heading_content_isupdated (heading, REM_INDEX) ||
 	  org_heading_subelts_isupdated (heading))
         {
           enter_structural_conflict (ctxt, local_side, "Deleted\n", out);
@@ -772,7 +872,7 @@ print_LI_RI (doc_ref *ref, print_ctxt *ctxt, doc_stream *out)
 
   if (loc_ishere && rem_ishere)
     {
-      print_LR (ref, ctxt, out); 
+      print_LR (ref, ctxt, out);
       print_subelts (ref, ctxt, out);
     }
   return;
@@ -785,7 +885,7 @@ print_LI_RX (doc_ref *ref, print_ctxt *ctxt, doc_stream *out)
   bool loc_ishere = doc_ref_contains (ref, LOC_SRC);
   if (loc_ishere)
     {
-      print_L (ref, ctxt, out); 
+      print_L (ref, ctxt, out);
       print_subelts (ref, ctxt, out);
     }
   return;
@@ -804,7 +904,7 @@ print_LX_RI (doc_ref *ref, print_ctxt *ctxt, doc_stream *out)
   bool rem_ishere = doc_ref_contains (ref, REM_SRC);
   if (rem_ishere)
     {
-      print_R (ref, ctxt, out); 
+      print_R (ref, ctxt, out);
       print_subelts (ref, ctxt, out);
     }
   return;
@@ -863,8 +963,8 @@ print_LR (doc_ref *ref, print_ctxt *ctxt, doc_stream *out)
         {
           print (h, ANC_INDEX, ctxt, out);
         }
-    } 
-  return;                                 
+    }
+  return;
 }
 
 /**
@@ -920,4 +1020,67 @@ print_subelts (doc_ref *ref, print_ctxt *ctxt, doc_stream *out)
   doc_reflist_print (h->subtext, ctxt, out);
   doc_reflist_print (h->subheadings, ctxt, out);
   return;
+}
+
+static void
+org_heading_note_delete (doc_ref *ref, merge_ctxt *ctxt)
+{
+  org_heading * heading = (org_heading *)doc_ref_get_elt(ref);
+  if (heading->key.length > 0)
+    {
+      /* org_text does not have global matching, do nothing */
+      smerger_register_delete (ctxt->global_smerger, ref, ctxt);
+    }
+  else
+    {
+      /* do nothing */
+    }
+  return;
+}
+
+static void
+org_heading_note_insert (doc_ref *ref, merge_ctxt *ctxt)
+{
+  /*
+   * Note a movement for all vesions that doc_ref represents.
+   */
+
+  org_heading *heading = (org_heading *)doc_ref_get_elt (ref);
+  if (heading->key.length > 0)
+    {
+      if (doc_ref_contains (ref, ANC_SRC))
+	heading->moved[srctoindex (ANC_SRC)] = true;
+      
+      if (doc_ref_contains (ref, REM_SRC))
+	heading->moved[srctoindex (REM_SRC)] = true;
+
+      if (doc_ref_contains (ref, LOC_SRC))
+	heading->moved[srctoindex (LOC_SRC)] = true;
+  
+      /* org_text does not have global matching, do nothing */
+      smerger_register_insert (ctxt->global_smerger, ref, ctxt);
+    }
+  else
+    {
+      /* Do nothing */
+    }
+  return;
+}
+
+/**
+ * @todo Implement org_heading_get_key.
+ */
+
+static doc_key org_heading_key = {
+  .string = "abc",
+  .length = 3,
+};
+
+static doc_key *
+org_heading_get_key (doc_elt * elt)
+{
+  /* org_text does not have global matching, do nothing */
+  /* this function should never be called? */
+
+  return &((org_heading *) elt )->key;//  &org_heading_key;
 }
