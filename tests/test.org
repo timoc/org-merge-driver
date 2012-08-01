@@ -1,0 +1,224 @@
+#+title: Org Merge Driver Testing
+#+author: Andrew Young
+#+properties :tangle
+
+* Overview
+*to run this file, either do make check at the command line, or C-c
+ C-c on the table.*
+
+  This document holds some examples of the behavior and
+features of the org-merge-driver.  To run the file, do C-c C-v t to
+produce the output files, and then 'make check' or something to run
+them.
+
+* Tests
+#+tblname: org-merge-driver-tests
+| Test Name        | test-name      | Result | Notes |
+|------------------+----------------+--------+-------|
+| Expected_Fail    | expected_fail  | not ok | TODO  |
+| Adding heading   | heading_add    | ok     |       |
+| Removing heading | heading_remove | ok     |       |
+#+TBLFM: $3='(sbe "test-runner" (test $$2))
+
+* Org Heading
+** Adding Heading
+Properly add new org-headings.
+*** Ancestor
+#+name: heading_add_anc
+#+begin_src org -n :tangle heading_add_anc.org
+  ,* Basket
+  ,** Green Apple
+  ,*** Seed 2
+  ,** Red Apple
+  ,*** Seed 1
+#+end_src
+
+*** Local
+#+name: heading_add_loc
+#+begin_src org -n :tangle heading_add_loc.org
+  ,* Basket
+  ,** Green Apple
+  ,*** Seed 1
+  ,*** Seed 2
+  ,** Red Apple
+  ,*** Seed 1
+#+end_src
+
+*** Remote
+#+name: heading_add_rem
+#+begin_src org -n :tangle heading_add_rem.org
+  ,* Basket
+  ,** Green Apple
+  ,*** Seed 2
+  ,** Red Apple
+  ,*** Seed 1
+  ,*** Seed 2
+#+end_src
+  
+*** Expected Output
+#+name: heading_add_exp
+#+begin_src org -n :tangle heading_add_exp.org
+  ,* Basket
+  ,** Green Apple
+  ,*** Seed 1
+  ,*** Seed 2
+  ,** Red Apple
+  ,*** Seed 1
+  ,*** Seed 2
+#+end_src
+
+*** Output
+ #+CALL: <name>(<arguments>)
+
+*** Summary
+** Removing Heading
+Properly remove new org-headings.
+*** Ancestor
+#+name: heading_add_exp
+#+begin_src org -n :tangle heading_remove_anc.org
+  ,* Basket
+  ,** Green Apple
+  ,*** Seed 1
+  ,*** Seed 2
+  ,** Red Apple
+  ,*** Seed 1
+  ,*** Seed 2
+#+end_src
+
+*** Local
+#+name: heading_add_loc
+#+begin_src org -n :tangle heading_remove_loc.org
+  ,* Basket
+  ,** Green Apple
+  ,*** Seed 1
+  ,*** Seed 2
+  ,** Red Apple
+  ,*** Seed 1
+#+end_src
+
+*** Remote
+#+name: heading_add_rem
+#+begin_src org -n :tangle heading_remove_rem.org
+  ,* Basket
+  ,** Green Apple
+  ,*** Seed 2
+  ,** Red Apple
+  ,*** Seed 1
+  ,*** Seed 2
+#+end_src
+  
+*** Expected Output
+#+name: heading_add_anc
+#+begin_src org -n :tangle heading_remove_exp.org
+  ,* Basket
+  ,** Green Apple
+  ,*** Seed 2
+  ,** Red Apple
+  ,*** Seed 1
+#+end_src
+
+*** Output
+#+call: org-merge-driver(test="heading_remove") :results verbatim
+
+* Other Tests
+Testing the test-suite with a failing test.
+*** Ancestor
+#+begin_src org -n :tangle heading_add_anc.org
+  ,* Basket
+  ,** Green Apple
+  ,*** Seed 2
+  ,** Red Apple
+  ,*** Seed 1
+#+end_src
+
+*** Local
+#+begin_src org -n :tangle expected_fail_loc.org
+  ,* Basket
+  ,** Green Apple
+  ,** Red Apple
+#+end_src
+
+*** Remote
+#+begin_src org -n :tangle expected_fail_rem.org
+  ,* Basket
+  ,** Green Apple
+  ,*** Seed 2
+  ,- new text
+  ,** Red Apple
+  ,*** Seed 1
+  ,*** Seed 2
+#+end_src
+  
+*** Expected Output
+#+begin_src org -n :tangle expected_fail_exp.org
+  ,* Basket
+  ,** Green Apple
+  ,*** Seed 1
+  ,*** Seed 2
+  ,** Red Apple
+  ,*** Seed 1
+  ,*** Seed 2
+#+end_src
+
+*** Output
+ #+CALL: <name>(<arguments>)
+* Testing Code
+This file can be used in two ways:
+1. Update the table of test results
+2. Create and run tests at 'make check'
+
+To update this file, and rerun all the tests do ??.
+
+To run the tests the other way, do a make check.
+** Merge Driver
+Call the org-merge-driver program.
+#+name: org-merge-driver
+#+begin_src sh :var test="heading_remove"
+  ../src/org-merge-driver ${test}_anc.org ${test}_loc.org ${test}_rem.org
+#+end_src
+
+** Test Runner
+This function runs an individual test.
+#+name: test-runner
+#+headers: :tangle test_runner.sh :noweb yes
+#+begin_src sh :exports code :var test="expected_fail"
+  result="not ok"
+  if  <<org-merge-driver>> | diff ./${test}_exp.org - > /dev/null
+  then
+      result="ok"
+  fi
+  echo -n "$result"
+#+end_src
+
+** TAP Suite Runner
+This is used by the automake test harness, to run all tests when
+running make check.  It prints the output in a different format then
+we want in the table.
+
+*** Extract Columns
+To make sure that the extracted column is embedded in the tangled
+script, it has to be the result of an evaluated piece of code.
+
+#+name: extract-column
+#+begin_src emacs-lisp :var column=org-merge-driver-tests[2:4,1]
+  column
+#+end_src
+
+*** Suite Runner
+Run a test, and print the results in TAP format.
+#+name: check_merge_rules :var tests=org-merge-driver-tests[0:2,1]
+#+headers: :tangle check_merge_rules.sh :exports code :results value :noweb yes
+#+begin_src sh
+  #!/bin/bash
+  tests=<<extract-column(column=org-merge-driver-tests[2:4,1])>>
+  expects=<<extract-column(column=org-merge-driver-tests[2:4,3])>>
+  count=${#tests[@]}
+  echo 1..$count
+  for i in seq 1 $count
+  do
+      test=${tests[i-1]}
+      expect=${expects[i-1]}
+      <<test-runner>>
+      echo "# $expect $test" 
+  done
+#+end_src
