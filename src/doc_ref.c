@@ -55,7 +55,7 @@ doc_reflist_print (gl_list_t reflist, void *context, doc_stream *out)
     {
       debug_msg (DOC, 4, "Printing element\n");
       elt = doc_ref_get_elt (ref);
-      doc_elt_print (elt, ref, context, out);
+      doc_elt_print (ref, context, out);
     }
   debug_msg (DOC, 5, "Finished printing element\n");
   gl_list_iterator_free (&i);
@@ -112,20 +112,15 @@ static int
 is_related (struct context *ctxt, OFFSET xoff, OFFSET yoff)
 {
   doc_ref *a_ref = (doc_ref * )gl_list_get_at (ctxt->ancestor, xoff);
-  doc_elt *a_elt = doc_ref_get_elt (a_ref);
-  doc_src  a_src = doc_ref_get_src (a_ref);
-
   doc_ref *d_ref = (doc_ref *)gl_list_get_at (ctxt->descendant, yoff);
-  doc_elt *d_elt = doc_ref_get_elt (d_ref);
-  doc_src  d_src = doc_ref_get_src (d_ref);
 
-  int result = doc_elt_isrelated (a_elt, a_src, d_elt, d_src, NULL);
+  int result = doc_elt_isrelated (a_ref, d_ref, NULL);
   debug_msg (MERGE, 4, "comparing (%d, %d)=%d\n", xoff, yoff, result);
   return result;
 }
 
 void
-doc_reflist_merge (gl_list_t ancestor, gl_list_t descendant)
+doc_reflist_merge (gl_list_t ancestor, gl_list_t descendant, merge_ctxt *merge_ctxt)
 {
   /* First, create a mapped_state for every element that will be mapped.
    * Compare the two strigs marking mapped and unmapped nodes.  Then,
@@ -196,6 +191,7 @@ doc_reflist_merge (gl_list_t ancestor, gl_list_t descendant)
   while ((a_index != a_size)
 	 || (d_index != d_size))
     {
+#if 0
       /* If they are unmapped, pick the order to put them in the list */
       if ((d_index != d_size) &&
 	  (d_state[d_index] == state_unmapped) &&
@@ -214,18 +210,21 @@ doc_reflist_merge (gl_list_t ancestor, gl_list_t descendant)
 	      next = 2;
 	    }
 	}
-      else if ((d_index != d_size)
-	       && (d_state[d_index] == state_unmapped))
-	{
-	  next = 1;
-	}
-      else if ((a_index != a_size)
-	       && (a_state[a_index-inserted] == state_unmapped))
-	{
-	  next = 2;
-	}
+      else
+#endif
+	if ((d_index != d_size)
+	    && (d_state[d_index] == state_unmapped))
+	  {
+	    next = 1;
+	  }
+	else if ((a_index != a_size)
+		 && (a_state[a_index-inserted] == state_unmapped))
+	  {
+	    next = 2;
+	  }
       else
 	{
+	  /* both are mapped */
 	  next = 0;
 	}
 
@@ -234,9 +233,10 @@ doc_reflist_merge (gl_list_t ancestor, gl_list_t descendant)
 	  /* Insert an unmatched node */
 	  debug_msg (MERGE, 3, "Inserting node\n");
 	  doc_ref * d_ref = (doc_ref *) gl_list_get_at (descendant, d_index);
-	  gl_list_nx_add_at (ancestor, d_index, (void *) d_ref);
+	  gl_list_nx_add_at (ancestor, a_index, (void *) d_ref);
 
 	  //mark_insert_children ();
+	  doc_elt_note_insert (d_ref, merge_ctxt);
 
 	  a_index++;
 	  a_size++;
@@ -250,23 +250,28 @@ doc_reflist_merge (gl_list_t ancestor, gl_list_t descendant)
 	  doc_ref * a_ref = (doc_ref *) gl_list_get_at (ancestor, d_index);
 
 	  // mark_remove_children (m_child, src);
-
+	  doc_elt_note_delete (a_ref, merge_ctxt);
 	  a_index++;
 	}
       else  if ((a_index != a_size) && (d_index != d_size))
 	{
 	  /* Match and merge matched nodes */
 	  debug_msg (MERGE, 3, "Matching node\n");
-	  doc_ref * d_ref = (doc_ref *) gl_list_get_at (descendant, d_index);
 	  doc_ref * a_ref = (doc_ref *) gl_list_get_at (ancestor, a_index);
+	  doc_ref * d_ref = (doc_ref *) gl_list_get_at (descendant, d_index);
 
 	  assert ((a_state[a_index-inserted] == state_mapped) &&
 		  (d_state[d_index] == state_mapped));
 
+	  /* set the document source of the doc_ref to the combined sources */
 	  doc_ref_add_src (a_ref, doc_ref_get_src (d_ref));
 
-	  doc_elt_merge (doc_ref_get_elt (a_ref), doc_ref_get_elt (d_ref),
-			 doc_ref_get_src (d_ref));
+	  /* get the element to merge the content and children */
+	  doc_elt_merge (a_ref, d_ref, merge_ctxt);
+
+	  /* make the doc_refs point to the same element */
+	  doc_ref_set_elt (d_ref, doc_ref_get_elt (a_ref) );
+
 	  a_index++;
 	  d_index++;
 	}

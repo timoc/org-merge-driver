@@ -8,10 +8,12 @@
 #include <stdlib.h>
 #include "gl_list.h"
 #include "doc_stream.h"
+//#include "doc_elt.h"
 
 /* #include "doc_elt.h" */
 struct doc_elt;
 typedef struct doc_elt doc_elt;
+typedef struct merge_ctxt merge_ctxt;
 
 /**
  * Indicates an input document (ancestor, local, or source). Used to
@@ -63,7 +65,7 @@ bool doc_reflist_isupdated (gl_list_t reflist);
 /**
  * @brief Merge two doc_ref lists together.  This function changes ancestor.
  */
-void doc_reflist_merge (gl_list_t ancestor, gl_list_t descendant);
+void doc_reflist_merge (gl_list_t ancestor, gl_list_t descendant, merge_ctxt *ctxt);
 
 /**
  * @brief print a list of ref_docs
