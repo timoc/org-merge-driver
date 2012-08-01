@@ -10,44 +10,100 @@
 #include <assert.h>
 
 #include "doc_stream.h"
-#include "doc_elt.h"
+//#include "doc_elt.h"
 #include "doc_ref.h"
 
+/* document element type, from doc_elt.h */
 typedef struct doc_elt doc_elt;
+/* printing context type, from print.h */
 typedef struct print_ctxt print_ctxt;
+/* sorting key type,  from doc_elt.h*/
+typedef struct doc_key doc_key;
+/* merge context type, from doc_elt.h */
+typedef struct merge_ctxt merge_ctxt;
 
-typedef enum doc_elt_compare_result
-  {
-    elt_compare_different,
-    elt_compare_same = 0,
-    elt_compare_a_updated,
-    elt_compare_b_updated
-  } doc_elt_compare_result;
+typedef struct doc_ref doc_ref;
 
+/* function types for document operations */
 /* Printing */
 typedef void (doc_elt_ops_print) (doc_ref*, print_ctxt *, doc_stream *);
 
 /* comparing */
-typedef int (doc_elt_ops_compare)(doc_elt *, doc_src, doc_elt*, doc_src);
-typedef bool (doc_elt_ops_isrelated) (doc_elt *, doc_src, doc_elt *, doc_src, void *);
+typedef int (doc_elt_ops_compare) (doc_elt *, doc_src, doc_elt*, doc_src);
+typedef bool (doc_elt_ops_isrelated) (doc_ref *, doc_ref *, void*);
 
 /* merging */
-typedef void (doc_elt_ops_merge) (doc_elt *, doc_elt *, doc_src);
+typedef void (doc_elt_ops_merge) (doc_ref *, doc_ref *, merge_ctxt *);
 typedef bool (doc_elt_ops_isupdated) (doc_ref *);
-typedef void (doc_elt_ops_unmapped) (doc_elt*);
 
+/* Global Mapping */
+typedef void (doc_elt_ops_note_delete) (doc_ref *, merge_ctxt *);
+typedef void (doc_elt_ops_note_insert) (doc_ref *, merge_ctxt *);
+typedef doc_key *(doc_elt_ops_get_key) (doc_elt *);
+
+/**
+ * The operations for an implementation of a doc_elt
+ */
 typedef struct doc_elt_ops
 {
   /* printing */
-  doc_elt_ops_print     *print;         /*< print an element */
+  doc_elt_ops_print        *print;         /*< print an element */
   /* comparing */
-  doc_elt_ops_compare   *compare;       /*< see if element is updated */
-  doc_elt_ops_isrelated *isrelated;     /*< if elements can be mapped */
+  doc_elt_ops_compare     *compare;       /*< see if element is updated */
+  doc_elt_ops_isrelated   *isrelated;     /*< if elements can be mapped */
   /* merging */
-  doc_elt_ops_merge     *merge;         /*< merge an element and all its children */
-  doc_elt_ops_isupdated *isupdated;     /*< check if an element (or children) is updated */
-  doc_elt_ops_unmapped  *mark_unmapped; /*< notify an element it is not mapped */
+  doc_elt_ops_merge       *merge;         /*< merge an element and all its children */
+  doc_elt_ops_isupdated   *isupdated;     /*< check if an element (or children) is updated */
+  doc_elt_ops_note_delete *note_delete;   /*< notify an element it was not matched */
+  doc_elt_ops_note_insert *note_insert;
+  /* Global mapping */
+  doc_elt_ops_get_key     *get_key;       /*< get a sorting key from an element */
+
 } doc_elt_ops;
+
+/* constructor, destructor */
+static inline doc_elt_ops * doc_elt_ops_create_empty ();
+static inline void doc_elt_ops_free (doc_elt_ops *ops);
+
+/* print operation */
+static inline doc_elt_ops_print* doc_elt_ops_get_print (doc_elt_ops *ops);
+static inline void doc_elt_ops_set_print (doc_elt_ops *ops, doc_elt_ops_print print);
+
+/* compare operation */
+static inline doc_elt_ops_compare* doc_elt_ops_get_compare (doc_elt_ops *ops);
+static inline void doc_elt_ops_set_compare (doc_elt_ops *ops,
+					    doc_elt_ops_compare compare);
+
+/* isrelated operation */
+static inline doc_elt_ops_isrelated* doc_elt_ops_get_isrelated (doc_elt_ops *ops);
+static inline void doc_elt_ops_set_isrelated (doc_elt_ops *ops,
+					      doc_elt_ops_isrelated isrelated);
+/* merge operation */
+static inline doc_elt_ops_merge* doc_elt_ops_get_merge (doc_elt_ops *ops);
+static inline void doc_elt_ops_set_merge (doc_elt_ops *ops, doc_elt_ops_merge merge);
+
+/* isupdated operation */
+static inline doc_elt_ops_isupdated* doc_elt_ops_get_isupdated (doc_elt_ops *ops);
+static inline void doc_elt_ops_set_isupdated (doc_elt_ops *ops,
+					      doc_elt_ops_isupdated isupdated);
+
+/* get_key operation */
+static inline doc_elt_ops_get_key* doc_elt_ops_get_get_key (doc_elt_ops *ops);
+static inline void doc_elt_ops_set_get_key (doc_elt_ops *ops,
+					    doc_elt_ops_get_key get_key);
+
+/* note_insert operation */
+static inline doc_elt_ops_note_insert* doc_elt_ops_get_note_insert (doc_elt_ops *ops);
+static inline void doc_elt_ops_set_note_insert (doc_elt_ops *ops,
+						doc_elt_ops_note_insert insert);
+
+/* note delete operation */
+static inline doc_elt_ops_note_delete* doc_elt_ops_get_note_delete (doc_elt_ops *ops);
+static inline void doc_elt_ops_set_note_delete (doc_elt_ops *ops,
+						doc_elt_ops_note_delete delete);
+/*
+ * Implementation Details
+ */
 
 static inline doc_elt_ops *
 doc_elt_ops_create_empty ()
@@ -136,18 +192,49 @@ doc_elt_ops_set_isupdated (doc_elt_ops *ops, doc_elt_ops_isupdated isupdated)
   return;
 }
 
-static inline doc_elt_ops_unmapped*
-doc_elt_ops_get_unmapped (doc_elt_ops *ops)
+static inline doc_elt_ops_note_insert* doc_elt_ops_get_note_insert (doc_elt_ops *ops)
 {
   assert (ops != NULL);
-  return ops->mark_unmapped;
+  return ops->note_insert;
 }
 
-static inline void
-doc_elt_ops_set_unmapped (doc_elt_ops *ops, doc_elt_ops_unmapped unmapped)
+static inline void doc_elt_ops_set_note_insert (doc_elt_ops *ops,
+						doc_elt_ops_note_insert insert)
 {
   assert (ops != NULL);
-  ops->mark_unmapped = unmapped;
+  ops->note_insert = insert;
   return;
 }
-#endif
+
+
+static inline doc_elt_ops_note_delete* doc_elt_ops_get_note_delete (doc_elt_ops *ops)
+{
+  assert (ops != NULL);
+  return ops->note_delete;
+}
+
+static inline void doc_elt_ops_set_note_delete (doc_elt_ops *ops,
+						doc_elt_ops_note_delete delete)
+{
+  assert (ops != NULL);
+  ops->note_delete = delete;
+  return;
+}
+
+static inline
+doc_elt_ops_get_key* doc_elt_ops_get_get_key (doc_elt_ops *ops)
+{
+  assert (ops != NULL);
+  return ops->get_key;
+}
+
+static inline
+void doc_elt_ops_set_get_key (doc_elt_ops *ops,
+			      doc_elt_ops_get_key get_key)
+{
+  assert (ops != NULL);
+  ops->get_key = get_key;
+  return;
+}
+
+#endif /* DOC_ELT_OPS_H */

@@ -37,6 +37,9 @@ srctoindex (doc_src src)
    case REM_SRC:
      i = REM_INDEX;
      break;
+   default:
+     abort ();
+     break;
    }
  return i;
 }
