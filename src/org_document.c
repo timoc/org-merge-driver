@@ -6,7 +6,7 @@
 #include "config.h"
 #include "gl_array_list.h"
 #include "gl_list.h"
-
+#include "merge_ctxt.h"
 #include "doc_elt.h"
 #include "org_heading.h"
 #include "org_text.h"
@@ -69,6 +69,8 @@ org_document_add_text_last (org_document *document, doc_src src, org_text *text)
   doc_ref *ref = doc_ref_create_empty ();
   doc_ref_set_src (ref, src);
   doc_ref_set_elt (ref, (doc_elt *) text);
+  /* tell the doc ref that the parent is immovable */
+  doc_ref_set_parent (ref, NULL);
   gl_list_nx_add_last (document->subtext, ref);
   return;
 }
@@ -80,6 +82,9 @@ org_document_add_heading_last (org_document *document, doc_src src, org_heading 
   doc_ref *ref = doc_ref_create_empty ();
   doc_ref_set_src (ref, src);
   doc_ref_set_elt (ref, (doc_elt *) heading);
+  /* tell the doc ref that the parent is immovable */
+  doc_ref_set_parent (ref, NULL);
+  org_heading_set_doc_ref (heading, ref);
   gl_list_nx_add_last (document->subheadings, ref);
   return;
 }
@@ -100,9 +105,9 @@ org_document_merge (org_document *anc, org_document *desc, merge_ctxt *ctxt)
 {
   debug_msg (DOC_ELT, 3, "Merging org_document\n");
   debug_msg (DOC_ELT, 5, "Merging text\n");
-  doc_reflist_merge (anc->subtext, desc->subtext, ctxt);
+  doc_reflist_merge (NULL, anc->subtext, desc->subtext, ctxt);
   debug_msg (DOC_ELT, 3, "Merging headings\n");
-  doc_reflist_merge (anc->subheadings, desc->subheadings, ctxt);
+  doc_reflist_merge (NULL, anc->subheadings, desc->subheadings, ctxt);
   return;
 }
 
@@ -119,7 +124,7 @@ org_print_op (doc_ref *ref, print_ctxt *ctxt, doc_stream *out)
 }
 
 static bool
-org_isrelated_op (doc_ref *local, doc_ref *remote, void *context)
+org_isrelated_op (doc_ref *local, doc_ref *remote, merge_ctxt *ctxt)
 {
   /* all org_documents are relatable */
   return true;
@@ -150,4 +155,28 @@ org_isupdated_op (doc_ref *a)
   /* check if the children are updated */
   /* check if this element is updated */
   return true;
+}
+
+/* will call thes function on its children after it searches for
+   itself */
+bool
+org_document_check_for_loop (org_document *this)
+{
+  /* first check to see if the target exist anywhere below */
+  gl_list_iterator_t i;
+  i = gl_list_iterator (this->subheadings);
+  doc_ref *ref = NULL;
+  bool found =  false;
+  org_heading *heading;
+
+  debug_msg (DOC,3, "checking for loops");
+  while (gl_list_iterator_next (&i, (const void **) &ref, NULL))
+    {
+      heading = (org_heading *)doc_ref_get_elt (ref);
+
+      org_heading_check_for_loop (heading);
+    }
+
+  gl_list_iterator_free (&i);
+  return found;
 }

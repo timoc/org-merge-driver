@@ -30,4 +30,10 @@ void org_document_add_heading_last (org_document *document, doc_src src, org_hea
 void org_document_print (org_document *doc, print_ctxt *ctxt, doc_stream *out);
 void org_document_merge (org_document *anc, org_document *desc, merge_ctxt *ctxt);
 
+
+/* will call thes function on its children after it searches for
+   itself */
+bool
+org_document_check_for_loop (org_document *this);
+
 #endif /* ORG_DOCUMENT_H */
