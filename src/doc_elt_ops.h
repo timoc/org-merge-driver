@@ -30,7 +30,7 @@ typedef void (doc_elt_ops_print) (doc_ref*, print_ctxt *, doc_stream *);
 
 /* comparing */
 typedef int (doc_elt_ops_compare) (doc_elt *, doc_src, doc_elt*, doc_src);
-typedef bool (doc_elt_ops_isrelated) (doc_ref *, doc_ref *, void*);
+typedef bool (doc_elt_ops_isrelated) (doc_ref *, doc_ref *, merge_ctxt *);
 
 /* merging */
 typedef void (doc_elt_ops_merge) (doc_ref *, doc_ref *, merge_ctxt *);

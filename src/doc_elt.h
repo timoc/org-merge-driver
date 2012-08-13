@@ -11,13 +11,20 @@
 #include "doc_elt_ops.h"
 #include "doc_stream.h"
 
+#include "merge_ctxt.h"
+#include "print_ctxt.h"
+#include "parse_ctxt.h"
+
 /* search merger type, from smerger.h */
 typedef struct smerger smerger;
 
 enum doc_type {
+  NO_TYPE = 0,
   ORG_DOCUMENT,
   ORG_HEADING,
-  ORG_TEXT
+  ORG_TEXT,
+  ORG_PROPERTY,
+  ORG_DRAWER,
 };
 
 typedef struct doc_elt
@@ -25,11 +32,6 @@ typedef struct doc_elt
   doc_elt_ops *ops;
   size_t type;
 } doc_elt;
-
-typedef struct merge_ctxt
-{
-  smerger *global_smerger;
-} merge_ctxt;
 
 typedef struct doc_key
 {
@@ -72,8 +74,8 @@ doc_elt_print (doc_ref* ref, print_ctxt *context, doc_stream *out);
 
 /**
  * @brief Compare two org_elements.
- * @self Compare this element. Uses this elements operations.
- * @other_element The element to compare with.
+ * @param self Compare this element. Uses this elements operations.
+ * @param other_element The element to compare with.
  *
  * two org_elements, returning TRUE if they match each other by some
  * distiguishing factor, false otherwise.  It is okay to compare two
@@ -81,32 +83,45 @@ doc_elt_print (doc_ref* ref, print_ctxt *context, doc_stream *out);
  * equal and doc_elt_compare will always return false.
  */
 static inline bool
-doc_elt_isrelated (doc_ref *ref_a, doc_ref *ref_b, void *context);
+doc_elt_isrelated (doc_ref *ref_a, doc_ref *ref_b, merge_ctxt *context);
 
+/**
+ * @brief Test if an element is updated.
+ * @param elt_a 
+ */
 static inline bool
 doc_elt_isupdated (doc_ref *elt_a);
 
 /**
  * @brief Compare two org_elements.
- * @self Compare this element. Uses this elements operations.
- * @other_element The element to compare with.
+ * @param self Compare this element. Uses this elements operations.
+ * @param other_element The element to compare with.
  */
 static inline int
 doc_elt_compare (doc_elt *elt_a, doc_src s1, doc_elt *elt_b, doc_src s2);
 
 /**
- * @brief Merge one element into the next
- * This function permanently changes the first element
+ * @brief Merge one element into the next.
+ * This function permanently changes the first element.
  */
 static void
 doc_elt_merge (doc_ref *ref_a, doc_ref *ref_b, merge_ctxt *ctxt);
 
+/**
+ * @brief Obtain the doc_key that uniquely identifies the element.
+ */
 static doc_key *
 doc_elt_get_key (doc_elt *elt);
 
+/**
+ * @brief Signal to the elements stored in REF that they are deleted.
+ */
 static void
 doc_elt_note_delete (doc_ref *ref, merge_ctxt *ctxt);
 
+/**
+ * @brief Signal to the elements stored in REF that they are inserted.
+ */
 static void
 doc_elt_note_insert (doc_ref *ref, merge_ctxt *ctxt);
 
@@ -146,7 +161,7 @@ doc_elt_print (doc_ref* ref, print_ctxt *context, doc_stream *out)
 }
 
 static inline bool
-doc_elt_isrelated (doc_ref *ref_a, doc_ref *ref_b, void *context)
+doc_elt_isrelated (doc_ref *ref_a, doc_ref *ref_b, merge_ctxt *context)
 {
   bool status = false;
   doc_elt *elt_a = doc_ref_get_elt (ref_a);
