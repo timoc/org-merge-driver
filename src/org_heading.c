@@ -27,7 +27,15 @@ typedef struct org_heading_data org_heading_data;
 static void org_heading_data_free (org_heading_data *self);
 static org_heading_data *org_heading_data_create_empty ();
 static bool org_heading_content_isupdated (org_heading *heading, size_t data_index);
+
 static bool org_heading_subelts_isupdated (org_heading *heading);
+
+static bool compare_body_text (org_heading_data *a_data,
+			       org_heading_data *b_data, merge_ctxt *ctxt);
+
+static size_t merge_tags (substr anc_str, substr loc_str, substr rem_sub, 
+			  size_t curr_col, bool gen_ws, print_ctxt *ctxt, 
+			  doc_stream *out);
 
 static void print_LU_RU (doc_ref *ref, print_ctxt *ctxt, doc_stream *out);
 static void print_LU_RD (doc_ref *ref, print_ctxt *ctxt, doc_stream *out);
@@ -74,6 +82,7 @@ doc_elt_ops org_heading_ops = {
   .isupdated     = &org_heading_isupdated_op,
   .note_delete   = &org_heading_note_delete,
   .note_insert   = &org_heading_note_insert,
+
   /* Global mapping */
   .get_key       = &org_heading_get_key
 };
@@ -82,26 +91,29 @@ doc_elt_ops org_heading_ops = {
 typedef struct org_heading_data
 {
   int       level;        /*< The heading level, number of stars. */
-  substr    text;         /*< The complete heading text. No stars. */
+  substr    entire_text;  /*< The complete heading text. No stars. */
+  substr    lead_ws;      /*< Whitespace between stars and content. */
   substr    todo;         /*< The todo state substring */
-  substr    pre_cookie;   /*< Cookies placed before heading text */
   substr    body_text;    /*< The basic heading text */
-  substr    post_cookie;  /*< Cookies placed before heading text */
+  substr    body_ws;      /*< Whitespace between the body and any tags.  */
+  substr    tags_str;     /*< The tags, as a substring rather than a list. */
+  //gl_list_t tags;         /*< A list of all tags. */
+  substr    post_text;    /*< Any text after tags. */
+  substr    linebreak;    /*< Any linebreaks. */
   property *uid;
-  gl_list_t properties;
-  gl_list_t tags;
 } org_heading_data;
 
 /* merged org_heading struct */
 typedef struct org_heading
 {
   doc_elt           elt;          /*< The element interface. */
-  org_heading_data* data[3];      /*< The data for each elt version */
+  org_heading_data* data[3];      /*< The data for each elt version. */
   bool              isupdated[3]; /*< Indicates if a corresponding data entry is updated. */
-  bool              moved[2];     /*< Indicates if a corresponding vesion was moved */
+  bool              moved[2];     /*< Indicates if a corresponding vesion was moved. */
   gl_list_t         subtext;      /*< A list of children text elements. */
   gl_list_t         subheadings;  /*< A list of children heading elements. */
   doc_key           key;
+  doc_ref          *ref;
 } org_heading;
 
 /**
@@ -119,12 +131,10 @@ org_heading *
 org_heading_create_empty (doc_elt_ops *elt_ops)
 {
   org_heading *h = calloc (1, sizeof (org_heading));
-  doc_elt_set_ops (&(h->elt), elt_ops);
-
+  doc_elt_set_type ((doc_elt *)h, ORG_HEADING);
+  doc_elt_set_ops ((doc_elt *)h, elt_ops);
   h->subheadings = gl_list_nx_create_empty (GL_ARRAY_LIST, NULL, NULL, NULL, true);
   h->subtext     = gl_list_nx_create_empty (GL_ARRAY_LIST, NULL, NULL, NULL, true);
-  h->key.string = NULL;
-  h->key.length = 0;
   return h;
 }
 
@@ -153,11 +163,8 @@ org_heading_containsversion (org_heading *heading, doc_src src)
 static org_heading_data *
 org_heading_data_create_empty ()
 {
-  org_heading_data *h = calloc (1, sizeof (org_heading_data));
-  doc_elt_set_type ((doc_elt *) h, ORG_HEADING);
-  h->properties =  gl_list_nx_create_empty (GL_ARRAY_LIST, NULL, NULL, NULL, true);
-  h->tags       =  gl_list_nx_create_empty (GL_ARRAY_LIST, NULL, NULL, NULL, true);
-  return h;
+  org_heading_data *data = calloc (1, sizeof (org_heading_data));
+  return data;
 }
 
 static void
@@ -168,234 +175,293 @@ org_heading_data_free (org_heading_data *self)
 
 /* Adding sub elements */
 void
-org_heading_add_subtext_last (org_heading *heading, doc_src src, org_text *text)
+org_heading_add_subtext_last (org_heading *heading, doc_src src, doc_elt *text)
 {
   /* wrap the element in a doc_ref, and add it to the list */
   doc_ref *ref = doc_ref_create_empty ();
   doc_ref_set_src (ref, src);
   doc_ref_set_elt (ref, (doc_elt *) text);
+  assert (heading->ref != NULL);
+  doc_ref_set_parent (ref, heading->ref);
+  /**
+   * @TODO make text elements honour movement
+   */
   gl_list_nx_add_last (heading->subtext, ref);
   return;
 }
 
 void
-org_heading_add_subheading_last (org_heading *heading, doc_src src, org_heading *subheading)
+org_heading_add_subheading_last (org_heading *heading, doc_src src, doc_elt *subheading)
 {
   /* wrap the element in a doc_ref, and add it to the list */
   doc_ref *ref = doc_ref_create_empty ();
   doc_ref_add_src (ref, src);
-  doc_ref_set_elt (ref, (doc_elt *) subheading);
+  doc_ref_set_elt (ref,  subheading);
+  assert (heading->ref != NULL);
+  doc_ref_set_parent (ref, heading->ref);
+  org_heading_set_doc_ref ((org_heading *)subheading, ref);
   gl_list_nx_add_last (heading->subheadings, ref);
   return;
 }
 
-/* Getters and Setters */
-gl_list_t
-org_heading_get_subtext (org_heading *self)
+doc_ref*
+org_heading_get_doc_ref (org_heading *heading)
 {
-  return self->subtext;
+  return heading->ref;
+}
+
+void org_heading_set_doc_ref (org_heading *heading, doc_ref *ref)
+{
+  heading->ref = ref;
+  return;
 }
 
 void
-org_heading_set_subtext (org_heading *self, gl_list_t text)
+org_heading_set_entire_text (org_heading *heading, char *string, int length,
+			     doc_src src, parse_ctxt *ctxt)
 {
-  self->subtext = text;
+
+  /* Set the entire line of a heading.
+   * The heading will parse the line, setting up substrings and extracting tags.
+   *
+   * Heading String Format
+   * ***    TODO   [#A]   Heading Body Text [%] [/] <>        :TAG1:TAG2: etc etc etc\n
+   * |  |   |   |  |                                  |       |          |           |
+   * 0  1   2   3  4                                  5       6          7           8
+   *
+   * 0. Stars
+   * 1. pre_ws
+   * 2. todo
+   * 3,4. body_text
+   * 5. body_ws
+   * 6. tags
+   * 7. post_text
+   * 7. linebreak
+   */
+
+  size_t index = srctoindex(src);
+
+  heading->data[index]->entire_text.string = string;
+  heading->data[index]->entire_text.length = length;
+
+  size_t i = 0;
+  size_t count = 0;       /* Used to count the length of a token. */
+  size_t lbound = 0;      /* Lower bound, inclusive */
+  size_t ubound = length; /* Upper bound, exclusive */
+
+  /* Parse stars:
+   * Count the lead stars.
+   * Store the stars as an integer.
+   */
+  for (count = 0; (lbound + count) < ubound; count++)
+    {
+      if (string[lbound + count] != '*')
+	{
+	  break;
+	}
+    }
+  heading->data[index]->level = count;
+  lbound = lbound + count;
+
+  /* Parse lead_whitespace:
+   * This is the whitespace between the stars and heading.
+   * Store it as a substring.
+   */
+  for (count = 0; count < ubound - lbound; count++)
+    {
+      if (!iswhitespace (string[lbound + count]))
+	{
+	  break;
+	}
+    }
+  heading->data[index]->lead_ws.string = string + lbound;
+  heading->data[index]->lead_ws.length = count;
+  lbound = lbound + count;
+
+  /* Parse TODO State:
+   * Read in the first word of the heading.
+   * If it is a TODO keyword:
+   *   Set the TODO field of data,
+   *   Increment lbound by the length of the todo.
+   * Otherwise do nothing.
+   */
+  for (count = 0; (lbound + count) < ubound; count++)
+    {
+      if (iswhitespace (string[lbound + count]))
+	{
+	  break;
+	}
+    }
+  if (istodo (string + lbound, count, ctxt))
+    {
+      heading->data[index]->todo.string = string + lbound;
+      heading->data[index]->todo.length = count;
+      lbound = lbound + count;
+    }
+  else
+    {
+      heading->data[index]->todo.string = NULL;
+      heading->data[index]->todo.length = 0;
+    }
+
+
+  /* Scan trailing linebreaks
+   * Scan right to left.
+   */
+  for (count = 0; count < (ubound - lbound); count++)
+    {
+      if (!islinebreak (string[ubound - count - 1]))
+	{
+	  break;
+	}
+    }
+  heading->data[index]->linebreak.string = string + ubound - count;
+  heading->data[index]->linebreak.length = count;
+  ubound = ubound - count;
+
+  /* Parse Tags:
+   * Scan right to left.
+   * Skip trailing newline characters,
+   *   These are placed in the post-text string.
+   * Scan for the first tag.
+   *   Any text to the right of the tags is placed in the post_text.
+   * Only the leftmost tags list is considered
+   *   Any text to the left  of the tags is placed in the body_text.
+   * The spacing between tags and body_text is not stored.
+   *   It is calculated if any
+   */
+  size_t tags_ubound = ubound;  /* The upper bound of all tags.     */
+  size_t tags_lbound = ubound;  /* The lower bound of all tags.     */
+
+  bool foundtags = false;
+  bool done = false;
+
+  for (i = 0; i < (ubound - lbound); i++)
+    {
+      if (string [ubound - i - 1] == ':')
+	{
+	  debug_msg (DOC_ELT, 5, "Found first colon, at %d\n", ubound - i - 1);
+
+	  if (foundtags = false)
+	    {
+	      tags_ubound = ubound - i;
+	      debug_msg (DOC_ELT, 5, "Setting  tags_ubound =%d\n", tags_ubound);
+	    }
+	  int j;
+	  for (j = 2; j < (tags_ubound - lbound); j++)
+	    {
+	      if (iswhitespace (string[tags_ubound - j]))
+		{
+		  debug_msg (DOC_ELT, 5, "Found whitespace at %d, tagsfound=%d\n",
+			     tags_ubound - j - 1, foundtags);
+
+                  if (!foundtags)
+                    i += (j+1);
+
+		  break;
+		}
+	      else if (string[tags_ubound - j] == ':')
+		{
+
+                  debug_msg (DOC_ELT, 5, "Found tag\n");
+                  foundtags = true;
+                  tags_lbound = tags_ubound - j;
+                  debug_msg (DOC_ELT, 5,
+                             "tags_lbound = %d; tags_ubound = %d\n",
+                             tags_lbound, tags_ubound);
+		}
+              else
+                {
+                  debug_msg (DOC_ELT, 5,
+                             "not all tags found\n",
+                             tags_lbound, tags_ubound);
+                  foundtags = false;
+                }
+	    }
+	  if (foundtags)
+	    {
+	      break;
+	    }
+	}
+    }
+
+ if (foundtags)
+   {
+     heading->data[index]->tags_str.string = string + tags_lbound;
+     heading->data[index]->tags_str.length = tags_ubound - tags_lbound;
+   }
+ else /* reset the ubound and lbound if no tags were found */
+   {
+     tags_ubound = ubound;
+     tags_lbound = ubound;
+   }
+
+  /*
+   * The post_text is all text between the linebreak and tags.
+   */
+
+  heading->data[index]->post_text.string = string + tags_ubound;
+  heading->data[index]->post_text.length = ubound - tags_ubound;
+
+  ubound = tags_lbound;
+
+  /* Store the whitespace between body_text and tags as body_ws */
+  int l = lbound;
+  int u = lbound;
+
+  for (i = lbound; i < tags_lbound; i++)
+    {
+      if (iswhitespace (string[i]))
+	{
+	  int j;
+	  bool foundwhitespace = true;
+	  for (j = i; j < tags_lbound; j++)
+	    {
+	      if (!iswhitespace (string[j]))
+		{
+		  i = j;
+		  foundwhitespace = false;
+		  break;
+		}
+	    }
+	  if (foundwhitespace)
+	    {
+	      break;
+	    }
+	}
+    }
+
+  /* The trailing body_text whitespace will be through the
+   * range [i .. tags_lbound).
+   */
+  heading->data[index]->body_text.string = string + lbound;
+  heading->data[index]->body_text.length = i - lbound;
+  heading->data[index]->body_ws.string = string + i;
+  heading->data[index]->body_ws.length = tags_lbound - i;
   return;
 }
+
 
 int
-org_heading_get_level (org_heading *self, doc_src src)
+org_heading_get_level (org_heading *heading, doc_src src)
 {
-  assert (self != NULL);
-  data_index i = srctoindex (src);
-  org_heading_data *data = self->data[i];
-  int level = 0;
-  assert (data != NULL);
-  if (data != NULL)
-    {
-      level = data->level;
-    }
-  return level;
+  int index = srctoindex (src);
+  return heading->data[index]->level;
 }
-
-void
-org_heading_set_level (org_heading *self, int level, doc_src src)
-{
-  assert (self != NULL);
-  data_index i = srctoindex(src);
-  org_heading_data *data = self->data[i];
-  assert (data != NULL);
-  if (data != NULL)
-    {
-      data->level = level;
-    }
-  return;
-}
-
-char *
-org_heading_get_text (org_heading*self, doc_src src)
-{
-  assert (self != NULL);
-  org_heading_data *data = self->data[srctoindex(src)];
-  assert (data != NULL);
-  char *text;
-  if (data != NULL)
-    {
-      text = data->text.string;
-    }
-  return text;
-}
-
-size_t
-org_heading_get_length (org_heading *heading, doc_src src)
-{
-  assert (heading != NULL);
-  org_heading_data *data = heading->data[srctoindex(src)];
-  assert (data != NULL);
-  size_t length;
-  if (data != NULL)
-    {
-      length = data->text.length;
-    }
-  return length;
-}
-
-void
-org_heading_set_text (org_heading *self, char *string, int length, doc_src src)
-{
-  /**
-   * @todo Have org_heading parse it's string and set up it's substrings.
-   */
-
-  assert (self != NULL);
-  org_heading_data *data = self->data[srctoindex(src)];
-  assert (data != NULL);
-  if (data != NULL)
-    {
-      data->text.string = string;
-      data->text.length = length;
-      data->body_text.string = string;
-      data->body_text.length = length;
-
-      /*
-       * For now, have body_text begin at the beginning of the heading
-       * text, and go until the first tag, marked by a colon (:).
-       * Leave the other subtexts empty.
-       */
-      int i = 0;
-      for (i = 0; i < length; i++)
-	{
-	  if (string[i] == ':')
-	    {
-	      self->key.string = (string + i);
-	      self->key.length = length - i;
-	      data->body_text.length = i - 1;
-	      break;
-	    }
-	}
-    }
-  return;
-}
-
-#if 0
-
-void
-org_heading_add_property_empty (char *string, doc_src src)
-{
-  /* keep a reference to the string, store the value and the key as
-   * pointers into the string.
-   */
-
-  property *p = malloc (sizeof (property));
-  p->string = string;
-  p->key = NULL;
-  p->value = NULL;
-
-  bool exit = false;
-  size_t offset = 0;
-  int state = 0;
-  size_t temp = 0;
-
-  /* scan the string for a property and key */
-  while (!exit)
-    {
-      /* if at the end of a string, exit early */
-      if (string[offset] == '\n' || string[offset] == '\0')
-	{
-	  exit = true;
-	  break;
-	}
-
-      switch (state)
-	{
-	case 0: /* searching for the start of the key */
-	  if (string[offset] == ':')
-	    {
-	      p->key = string + offset + 1;
-	      state = 1;
-	    }
-	  offset++;
-	  break;
-
-	case 1: /* setting the key */
-	  if (string[offset] == ':')
-	    {
-	      p->key_length = temp;
-	      state = 2;
-	      temp = 0;
-	      offset++;
-	      break;
-	    }
-	  temp++;
-	  offset++;
-	  break;
-
-	case 2: /* eat white spaces before the value */
-	  if (string[offset] != ' ')
-	    {
-	      p->value = string + offset;
-	      p->value_length = 1;
-	      state = 3;
-	      temp = 1;
-	      offset++;
-	      break;
-	    }
-	  offset++;
-	  break;
-
-	case 3: /* set the value */
-	  if (string[offset] != ' ')
-	    {
-	      /* only grab nonblank space */
-	      p->value_length = temp;
-	    }
-	  offset++;
-	  temp++;
-	  break;
-	}
-
-      /* check to see if the property had the correct form */
-      if (DOC_ELT_PRINTLEVEL <= 5)
-	{
-	  debug_msg (DOC_ELT, 5, "property: \"");
-	  fwrite (p->key, sizeof (char), p->key_length, stderr );
-	  debug_msg (DOC_ELT, 5, "\" \"");
-	  fwrite (p->value, sizeof (char), p->value_length, stderr );
-	  debug_msg (DOC_ELT, 5, "\n");
-	}
-    }
-
-  return;
-}
-
-#endif
 
 /*
  * doc_elt interface
  */
 
+/**
+ * Test if two headings have the same title.  Compare the body_text of
+ * both headings, ignoring cookies and whitespace.
+ *
+ * Essentially, if two headings have the same words, then they
+ * related, regardless of spaces, cookies, tags, & todo state.
+ */
 static bool
-org_heading_isrelated_op (doc_ref *a_ref, doc_ref *b_ref, void *context)
+org_heading_isrelated_op (doc_ref *a_ref, doc_ref *b_ref, merge_ctxt *ctxt)
 {
   /* isrelated is used by various matching algorithms to see if the
    * elements stored at two refs are related.  Two elements are
@@ -412,72 +478,383 @@ org_heading_isrelated_op (doc_ref *a_ref, doc_ref *b_ref, void *context)
   bool isrelated = false;
 
   /* Before we can compare the elements as headings, we must make sure
-     that both are, in fact, actually headings.  For this function to
-     be called, at least one element should be a heading.
-  */
-  if (doc_elt_get_type (elt_a) == doc_elt_get_type (elt_b))
+   * that both are, in fact, actually headings.  For this function to
+   * be called, one element is expected to be a heading, the other may
+   * or may not be.  This isrelated operation needs both elements to
+   * be headings, and will return false if they are not.
+   */
+  if ((doc_elt_get_type (elt_a) == ORG_HEADING) &&
+      (doc_elt_get_type (elt_b) == ORG_HEADING))
     {
 
+      /* Each doc_ref may store multiple versions of the same element.
+       * Use only a single version to check if both headings are
+       * equal, prioritizing using the ancestor.
+       */
+
+      org_heading *a_heading = (org_heading *) doc_ref_get_elt (a_ref);
       doc_src a_src;
-      doc_src b_src;
-      org_heading      *a_heading = (org_heading *) doc_ref_get_elt (a_ref);
-      org_heading      *b_heading = (org_heading *) doc_ref_get_elt (b_ref);
-
-      org_heading_data *a_data;
-      org_heading_data *b_data;
-
-      /* use only a single src to check if they are equal, prioritizing
-	 using the ancestor */
       if (doc_ref_contains (a_ref, ANC_SRC))
-	a_data = a_heading->data[srctoindex(ANC_SRC)];
+        a_src = ANC_SRC;
       else if (doc_ref_contains (a_ref, LOC_SRC))
-	a_data = a_heading->data[srctoindex(LOC_SRC)];
+        a_src = LOC_SRC;
       else if (doc_ref_contains (a_ref, REM_SRC))
-	a_data = a_heading->data[srctoindex(REM_SRC)];
+        a_src = REM_SRC;
 
+      size_t a_index = srctoindex (a_src);
+      org_heading_data *a_data = a_heading->data[a_index];
+
+      org_heading *b_heading = (org_heading *) doc_ref_get_elt (b_ref);
+      doc_src b_src;
       if (doc_ref_contains (b_ref, ANC_SRC))
-	b_data = b_heading->data[srctoindex(ANC_SRC)];
+        b_src = ANC_SRC;
       else if (doc_ref_contains (b_ref, LOC_SRC))
-	b_data = b_heading->data[srctoindex(LOC_SRC)];
+        b_src = LOC_SRC;
       else if (doc_ref_contains (b_ref, REM_SRC))
-	b_data = b_heading->data[srctoindex(REM_SRC)];
+        b_src = REM_SRC;
+
+      size_t b_index = srctoindex (b_src);
+      org_heading_data *b_data = b_heading->data[b_index];
 
       assert (b_data && a_data);
 
-      /**
-       * @todo Make org_heading_isrelated_op check for matching uid.
-       */
-      /* if the heading has a UID, use to tell the difference */
-      /**
-       * @todo Make org_heading_isrelated_op skip over cookies.
-       */
-
-      /* Org_heading will skip over cookies in the body_text when testing
-	 for is_related.  Cookies are wrapped in square brackets. */
-      /* compare the key if it exists, use the heading body otherwise */
+      /* compare the key if it exists, use the heading body
+         otherwise */
       if (a_heading->key.length > 0)
-	{
-	  if (b_heading->key.length > 0)
-	    {
-	      isrelated = doc_key_eql (&(a_heading->key), &(b_heading->key));
-	    }
-	  else
-	    {
-	      isrelated = false;
-	    }
-	}
+        {
+          if (b_heading->key.length > 0)
+            {
+              isrelated = doc_key_eql (&(a_heading->key), &(b_heading->key));
+            }
+          else
+            {
+              isrelated = false;
+            }
+        }
       else
-	{
-	  if (b_heading->key.length > 0)
-	    {
-	      isrelated = false;
-	    }
-	  else
-	    {
-	      isrelated = (substreql(a_data->body_text, b_data->body_text));
-	    }
-	}
-    }
+        {
+          if (b_heading->key.length > 0)
+            {
+              isrelated = false;
+            }
+          else
+            {
+              isrelated = compare_body_text (a_data, b_data, ctxt);
+            } /* end not key, so compare the lines */
+        }/* end missing 1 key */
+    } /* end same types of element */
+
+  return isrelated;
+}
+
+/*
+ * Test if two headings have the same title.  Compare the body_text of
+ * both headings, ignoring cookies and whitespace.
+ *
+ * Essentially, if two headings have the same words, then they
+ * related, regardless of spaces, cookies, tags, & todo state.
+ */
+static bool
+compare_body_text (org_heading_data *a_heading_data,
+		   org_heading_data *b_heading_data, merge_ctxt *ctxt)
+{
+  bool isrelated = true;
+  size_t a_i = 0;
+  size_t b_i = 0;
+  bool a_is_cookie = false, b_is_cookie = false;
+  bool a_whitespace = true, b_whitespace = true; /*skip all leading
+                                                   whitespace */
+  size_t a_lookahead, b_lookahead;
+
+  /* set an upperbound and lower bound to strip out all leading antd
+     ending whitespace */
+  substr a_body = a_heading_data->body_text;
+  substr b_body = b_heading_data->body_text;
+  int i;
+
+  while ((a_i < a_body.length) ||
+         (b_i < b_body.length))
+    {
+      a_is_cookie = false;
+      b_is_cookie = false;
+      /* compress all whitespace into a single space */
+
+      /* Eat whitespace. Compress all white space into a single space */
+      if ((a_i < a_body.length) &&
+          (iswhitespace (a_body.string[a_i])))
+        {
+
+          while((a_i < a_body.length) &&
+                (iswhitespace (a_body.string[a_i])))
+            {
+              a_i++;
+            }
+
+          a_whitespace = true;
+        }
+
+      if ((b_i < b_body.length) &&
+          (iswhitespace (b_body.string[b_i])))
+        {
+          while((b_i < b_body.length) &&
+                (iswhitespace (b_body.string[b_i])))
+            {
+              b_i++;
+            }
+
+          b_whitespace = true;
+        }
+
+      /* check for cookies.
+       * priority cookie: "[#ABC]"
+       * statistics:      "[535/5353]"
+       *               or "[902%]" 
+       */
+      if ( (a_i < a_body.length) &&
+           (a_body.string[a_i] == '[') )
+        {
+          /* look a head to see if it is a cookie */
+          bool quit = false;
+          a_lookahead = a_i + 1;
+
+          /* The state of the cookie parser:
+           *  0: try to find what kind of cookie it is
+           *  1: statistics cookie
+           *  2: priority cookie
+           *  3: wrap up cookie, ignoring numbers
+           *  4: wrap up cookie
+           */
+          size_t state = 0;
+
+          while ( (a_lookahead < a_body.length) &&
+                  (!quit) )
+            {
+              switch (state)
+                {
+                case 0:  /* no idea what kind of cookie this is */
+                  /* check for a priority */
+                  if (a_body.string[a_lookahead] == '#')
+                    {
+                      state = 2;;
+                    }
+                  else if (isnumber(a_body.string[a_lookahead]))
+                    {
+                      state = 1; /* scan a statistics cookie */
+                    }
+                  else if (a_body.string[a_lookahead] == '/')
+                    {
+                      state = 4; /* ignore numbers and wrap up */
+                    }
+                  else if (a_body.string[a_lookahead] == '%')
+                    {
+                      state = 3; /* wrap up cookie */
+                    }
+                  else  /* is not a cookie */
+                    {
+                      quit = true;
+                    }
+
+                  /* advance to the next character */
+                  a_lookahead ++;
+                  break;
+
+                case 1: /* check for a statistics cookie */
+                  if (isnumber(a_body.string[a_lookahead]))
+                    {
+                      state = 1; /* scan a statistics cookie */
+                    }
+                  else if (a_body.string[a_lookahead] == '/')
+                    {
+                      state = 4; /* ignore numbers and wrap up */
+                    }
+                  else if (a_body.string[a_lookahead] == '%')
+                    {
+                      state = 3; /* wrap up cookie */
+                    }
+                  else /* is not a cookie */
+                    {
+                      quit = true; /* cookie finished too soon */
+                    }
+
+                  /* advance to the next character */
+                  a_lookahead ++;
+                  break;
+
+                case 2: /* scanning for a priority cookie */
+                  if ((a_lookahead < a_body.length) &&
+                      (ispriority (a_body.string[a_lookahead], ctxt)))
+                    {
+                      state = 4;
+                      a_lookahead++;
+                    }
+                  else /* not a cookie */
+                    quit = true;
+
+                  break;
+
+                case 3: /* skip numbers and wrap up cookie */
+                  while (isnumber(a_body.string[a_lookahead]))
+                    {
+                      a_lookahead++;
+                    }
+
+                case 4:  /* scan for propper wrapup */
+                  /* note the fallthrough from above */
+                  if (a_body.string[a_lookahead] = ']')
+                    {
+                      a_is_cookie = true;
+                    }
+                  a_lookahead++;
+                  /* exit no matter what the next text is */
+                  quit = true;
+
+                  break;
+                }
+            } /* end while */
+        } /* end if */
+
+          /* eat cookies in b */
+      if ( (b_i < b_body.length) &&
+           (b_body.string[b_i] == '[') )
+        {
+          bool quit = false;
+          size_t state = 0;
+          b_lookahead = b_i + 1;
+
+          while ( (b_lookahead < b_body.length) &&
+                  (!quit) )
+            {
+              switch (state)
+                {
+                case 0:  /* no idea what kind of cookie this is */
+                  /* check for a priority */
+                  if (b_body.string[b_lookahead] == '#')
+                    {
+                      state = 2;;
+                    }
+                  else if (isnumber(b_body.string[b_lookahead]))
+                    {
+                      state = 1; /* scan a statistics cookie */
+                    }
+                  else if (b_body.string[b_lookahead] == '/')
+                    {
+                      state = 4; /* ignore numbers and wrap up */
+                    }
+                  else if (b_body.string[b_lookahead] == '%')
+                    {
+                      state = 3; /* wrap up cookie */
+                    }
+                  else  /* is not a cookie */
+                    {
+                      quit = true;
+                    }
+
+                  /* advance to the next character */
+                  b_lookahead ++;
+                  break;
+
+                case 1: /* check for a statistics cookie */
+                  if (isnumber(b_body.string[b_lookahead]))
+                    {
+                      state = 1; /* scan a statistics cookie */
+                    }
+                  else if (b_body.string[b_lookahead] == '/')
+                    {
+                      state = 4; /* ignore numbers and wrap up */
+                    }
+                  else if (b_body.string[b_lookahead] == '%')
+                    {
+                      state = 3; /* wrap up cookie */
+                    }
+                  else /* is not a cookie */
+                    {
+                      quit = true; /* cookie finished too soon */
+                    }
+
+                  /* advance to the next character */
+                  b_lookahead ++;
+                  break;
+
+                case 2: /* scanning for a priority cookie */
+                  if ((b_lookahead < b_body.length) &&
+                      (ispriority (b_body.string[b_lookahead], ctxt)))
+                    {
+                      state = 4;
+                      b_lookahead++;
+                    }
+                  else /* not a cookie */
+                    quit = true;
+
+                  break;
+
+                case 3: /* skip numbers and wrap up cookie */
+                  while (isnumber(b_body.string[b_lookahead]))
+                    {
+                      b_lookahead++;
+                    }
+
+                case 4:  /* scan for propper wrapup */
+                  /* note the fallthrough from above */
+                  if (b_body.string[b_lookahead] = ']')
+                    {
+                      b_is_cookie = true;
+                      b_lookahead++;
+                    }
+
+                  /* exit no matter what the next text is */
+                  quit = true;
+
+                  break;
+                }
+            }
+        } /* finish eating cookies */
+
+      /* compare the next character */
+      {
+        if (a_is_cookie)
+          {
+            /* skip the cookie */
+            a_i = a_lookahead;
+          }
+
+        if (b_is_cookie)
+          {
+            /* skip the cookie */
+            b_i = b_lookahead;
+          }
+
+        if ((!b_is_cookie) && (!a_is_cookie))
+          {
+            if ((a_i < a_body.length) &&
+                (b_i < b_body.length))
+              {
+                /* compare the next character */
+                if ( !(a_whitespace == b_whitespace
+                    && b_body.string[b_i] == a_body.string[a_i]) )
+                  {
+                    /* break from the loop */
+                    isrelated = false;
+                    b_i = -1;
+                    a_i = -1;
+                  }
+                else
+                  {
+                    a_i ++;
+                    b_i ++;
+                    a_whitespace = false;
+                    b_whitespace = false;
+                  }
+              }
+            else
+              {
+                /* break from the loop */
+                isrelated = false;
+                b_i = -1;
+                a_i = -1;
+              }
+          }
+      }
+    } /* end while: compare the lines */
   return isrelated;
 }
 
@@ -518,32 +895,17 @@ org_heading_merge_op (doc_ref *a_ref, doc_ref *b_ref, merge_ctxt *ctxt)
     a_heading->data[REM_INDEX] = b_heading->data[REM_INDEX];
 
   /* merge the doc_src of the elements */
-  /*
-    doc_ref_set_src (a_src, doc_ref_get_src (a_src) | doc_ref_get_src (b_src));
-    doc_ref_set_src (b_src, doc_ref_get_src (a_src) | doc_ref_get_src (b_src));
-  */
 
-  /*
-    if (doc_ref_contains (b_ref, ANC_SRC) && ((b_heading->moved[ANC_INDEX] == false)))
-    doc_ref_add_src (a_ref, LOC_SRC);
-
-    if (doc_ref_contains (b_ref, REM_SRC) && ((b_heading->moved[REM_INDEX] == false)))
-    doc_ref_add_src (a_ref, REM_SRC);
-
-    if (doc_ref_contains (b_ref, LOC_SRC) && ((b_heading->moved[LOC_INDEX] == false)))
-    doc_ref_add_src (a_ref, LOC_SRC);
-  */
-
-  /* Merge the movement flogs of the elements */
+  /* Merge the movement flags of the elements */
   a_heading->moved[LOC_INDEX] = a_heading->moved[LOC_INDEX] || b_heading->moved[LOC_INDEX];
   a_heading->moved[REM_INDEX] = a_heading->moved[REM_INDEX] || b_heading->moved[REM_INDEX];
 
   /* Merge the children elements */
   debug_msg (DOC_ELT, 5, "Merging heading subtext\n");
-  doc_reflist_merge (a_heading->subtext, b_heading->subtext, ctxt);
+  doc_reflist_merge (b_ref, a_heading->subtext, b_heading->subtext, ctxt);
 
   debug_msg (DOC_ELT, 3, "Merging heading subheadings\n");
-  doc_reflist_merge (a_heading->subheadings, b_heading->subheadings, ctxt);
+  doc_reflist_merge (b_ref, a_heading->subheadings, b_heading->subheadings, ctxt);
 
   /* the doc_refs are updated externally */
 
@@ -606,13 +968,24 @@ org_heading_content_isupdated (org_heading *heading, size_t data_index)
    * count as updates according to this function.
    */
 
+  /* return true if:
+   * - moved
+   * - children updated
+   * - level changed
+   * - body text changed
+   * - todo text changed
+   * - tags changed
+   * Don't return true if:
+   * - deleted
+   */
+
   bool isupdated = false;
 
   if (anc_data != NULL)
     {
       if (new_data != NULL)
 	{
-	  isupdated = (substreql (anc_data->text, new_data->text) == 0);
+	  isupdated = (substreql (anc_data->entire_text, new_data->entire_text) == 0);
 	}
       else
 	{
@@ -626,12 +999,9 @@ org_heading_content_isupdated (org_heading *heading, size_t data_index)
 	}
       else
 	{
+
 	}
     }
-
-  /**
-   * @todo check all data for updates, not just the heading line.
-   */
 
   /**
    * @todo Cache the calculated update.  This may require a
@@ -648,11 +1018,9 @@ org_heading_subelts_isupdated (org_heading *heading)
    * @todo Cache the calculated isupdated status.
    */
 
-  return
-    doc_reflist_isupdated (heading->subheadings) ||
-    doc_reflist_isupdated (heading->subtext);
+  return  (doc_reflist_isupdated (heading->subheadings) ||
+	   doc_reflist_isupdated (heading->subtext));
 }
-
 
 /*
  * Printing and Merging.
@@ -663,7 +1031,7 @@ org_heading_print_op (doc_ref *ref, print_ctxt *ctxt, doc_stream *out)
 {
 
   /* Letter | Meaning
-   *      U | Updated: An updated element exists in this vesion.
+   *      U | Updated: An updated element exists in this version.
    *      D | Deleted: The element was deleted in this version.
    *      I | Inserted: The element is new, and has no ancestor.
    *      X | Does not exist: The element is unassociated with the version.
@@ -723,7 +1091,7 @@ org_heading_print_op (doc_ref *ref, print_ctxt *ctxt, doc_stream *out)
   return;
 }
 
-static void
+static inline void
 print_LU_RU (doc_ref *ref, print_ctxt *ctxt, doc_stream *out)
 {
   debug_msg (DOC_ELT, 5, "Begin\n");
@@ -821,7 +1189,7 @@ print_LU_RD (doc_ref *ref, print_ctxt *ctxt, doc_stream *out)
       if (org_heading_content_isupdated (heading, LOC_INDEX) ||
 	  org_heading_subelts_isupdated (heading))
         {
-          enter_structural_conflict (ctxt, local_side, NULL, out);
+          enter_structural_conflict (ctxt, local_side, "Updated\n", out);
           print_L (ref, ctxt, out);
 	  print_subelts (ref, ctxt, out);
           enter_structural_conflict (ctxt, remote_side, NULL, out);
@@ -850,7 +1218,7 @@ print_LD_RU (doc_ref *ref, print_ctxt *ctxt, doc_stream *out)
           enter_structural_conflict (ctxt, remote_side, NULL, out);
           print_R (ref, ctxt, out);
 	  print_subelts (ref, ctxt, out);
-          enter_structural_conflict (ctxt, no_conflict, NULL, out);
+          enter_structural_conflict (ctxt, no_conflict, "Updated\n", out);
         }
     }
   return;
@@ -930,38 +1298,213 @@ print_LR (doc_ref *ref, print_ctxt *ctxt, doc_stream *out)
 {
   debug_msg (DOC_ELT, 5, "Begin\n");
   org_heading *h = (org_heading *)doc_ref_get_elt (ref);
-  bool loc_isupdated = org_heading_content_isupdated (h, LOC_INDEX);
-  bool rem_isupdated = org_heading_content_isupdated (h, REM_INDEX);
+  org_heading_data *anc_data = h->data[ANC_INDEX];
+  org_heading_data *loc_data = h->data[LOC_INDEX];
+  org_heading_data *rem_data = h->data[REM_INDEX];
 
-  /**
-   * @todo Properly merge two updated heading elements. For now, just
-   * conflict them if they are different.
-   */
-
-  if (loc_isupdated)
+  /* Scan each field for an update.
+     If it has updated, make a note.
+     If both versions have updated, note a conflict.
+  */
+  if (anc_data == NULL)
     {
-      if (rem_isupdated)
-        {
-          enter_content_conflict (ctxt, local_side, "Updated\n", out);
-          print (h, LOC_INDEX, ctxt, out);
-          enter_content_conflict (ctxt, remote_side, NULL, out);
-          print (h, REM_INDEX, ctxt, out);
-          enter_content_conflict (ctxt, no_conflict, "Updated\n", out);
-        }
+      if (substreql (loc_data->entire_text, rem_data->entire_text))
+	{
+	  substrprint (loc_data->entire_text, out);
+	}
       else
-        {
-          print (h, LOC_INDEX, ctxt, out);
-        }
+	{
+	  enter_content_conflict (ctxt, local_side, "Updated\n", out);
+	  print (h, LOC_INDEX, ctxt, out);
+	  enter_content_conflict (ctxt, remote_side, NULL, out);
+	  print (h, REM_INDEX, ctxt, out);
+	  enter_content_conflict (ctxt, no_conflict, "Updated\n", out);
+	}
     }
   else
     {
-      if (rem_isupdated)
+      bool conflict = false;
+
+      /* Level */
+      bool loc_level_update = (loc_data->level != anc_data->level);
+      bool rem_level_update = (rem_data->level != anc_data->level);
+      if (loc_data->level != rem_data->level)
         {
-          print (h, REM_INDEX, ctxt, out);
+          conflict = conflict || (loc_level_update && rem_level_update);
         }
-      else
+
+      /* lead_ws */
+      bool loc_lead_ws_update = !substreql (loc_data->lead_ws, anc_data->lead_ws);
+      bool rem_lead_ws_update = !substreql (rem_data->lead_ws, anc_data->lead_ws);
+      //if (!substreql (loc_data->lead_ws, rem_data->lead_ws))
         {
-          print (h, ANC_INDEX, ctxt, out);
+          //conflict = conflict || (loc_lead_ws_update && rem_lead_ws_update);
+        }
+
+      /* todo */
+      bool loc_todo_update = !substreql (loc_data->todo, anc_data->todo);
+      bool rem_todo_update = !substreql (rem_data->todo, anc_data->todo);
+      if (!substreql (loc_data->todo, rem_data->todo))
+        {
+          conflict = conflict || ( loc_todo_update && rem_todo_update);
+        }
+
+      /* body text
+       * strip the whitespace off the ends of the body text, so that
+       * it is ignored when trying to see if there is a conflict or
+       * not */
+      bool loc_body_text_update = !substreql (loc_data->body_text, anc_data->body_text);
+      bool rem_body_text_update = !substreql (rem_data->body_text, anc_data->body_text);
+
+      /* set an upperbound and lower bound to strip out all leading antd
+         ending whitespace */
+      substr loc_body = loc_data->body_text;
+      substr rem_body = rem_data->body_text;
+      int i;
+
+      for(i = 0; i < loc_body.length; i++)
+        {
+          if (!iswhitespace (loc_body.string[i]))
+            break;
+        }
+      loc_body.length -= i;
+      loc_body.string += i;
+
+      for(i = 0; i < rem_body.length; i++)
+        {
+          if (!iswhitespace (rem_body.string[i]))
+            break;
+        }
+      rem_body.length -= i;
+      rem_body.string += i;
+
+      for(i = 0; i < loc_body.length; i++)
+        {
+          if (!iswhitespace (loc_body.string[loc_body.length-i]))
+            break;
+        }
+      loc_body.length -= (i -1);
+
+      for(i = 0; i < rem_body.length; i++)
+        {
+          if (!iswhitespace (rem_body.string[rem_body.length-i]))
+            break;
+        }
+      rem_body.length -= (i -1);
+
+      if (!substreql (loc_body, rem_body))
+        {
+          conflict = conflict || (loc_body_text_update && rem_body_text_update);
+        }
+
+      /* tags_str */
+      bool loc_tags_str_update = !substreql (loc_data->tags_str, anc_data->tags_str);
+      bool rem_tags_str_update = !substreql (rem_data->tags_str, anc_data->tags_str);
+      /* Tags cannot cause a conflict */
+
+      /* Post text */
+      bool loc_post_text_update = !substreql (loc_data->post_text, anc_data->post_text);
+      bool rem_post_text_update = !substreql (rem_data->post_text, anc_data->post_text);
+      if (!substreql (loc_data->post_text, rem_data->post_text))
+        {
+          conflict = conflict || (loc_post_text_update && rem_post_text_update);
+        }
+
+      /* linebreak */
+      bool loc_linebreak_update = !substreql (loc_data->linebreak, anc_data->linebreak);
+      bool rem_linebreak_update = !substreql (rem_data->linebreak, anc_data->linebreak);
+      //conflict = conflict || (loc_post_text_update && rem_post_text_update);
+
+      if (conflict)
+	{
+	  /* Print both version unmerged */
+	  enter_content_conflict (ctxt, local_side, "Updated\n", out);
+	  print (h, LOC_INDEX, ctxt, out);
+	  enter_content_conflict (ctxt, remote_side, NULL, out);
+	  print (h, REM_INDEX, ctxt, out);
+	  enter_content_conflict (ctxt, no_conflict, "Updated\n", out);
+	}
+      else
+	{
+	  int col = 0;
+	  /* Print Stars */
+	  int i = 0;
+	  int level = 0;
+	  if (loc_level_update)
+	      level = loc_data->level;
+	  else
+	      level = rem_data->level;
+
+	  col += level;
+	  for (i = 0; i < level; i++)
+	    doc_stream_putc('*', out);
+
+	  /* Lead Witespace */
+	  if (loc_lead_ws_update)
+	      col += substrprint (loc_data->lead_ws, out);
+	  else if (rem_lead_ws_update)
+	      col += substrprint (rem_data->lead_ws, out);
+	  else
+	      col += substrprint (anc_data->lead_ws, out);
+
+	  /* Todo State */
+	  if (loc_todo_update)
+	    col += substrprint (loc_data->todo, out);
+	  else if (rem_todo_update)
+	    col += substrprint (rem_data->todo, out);
+	  else
+	    col += substrprint (anc_data->todo, out);
+
+	  /* body_text */
+	  bool generate_body_ws = true;
+
+	  if (loc_body_text_update)
+	    {
+	      col += substrprint (loc_data->body_text, out);
+	      if (!generate_body_ws)
+		{
+		  col += substrprint (loc_data->body_ws, out);
+		}
+            }
+          else if (rem_body_text_update)
+            {
+              col += substrprint (rem_data->body_text, out);
+              if (!generate_body_ws)
+                {
+                  col += substrprint (rem_data->body_ws, out);
+                }
+            }
+          else
+            {
+              col += substrprint (anc_data->body_text, out);
+              if (!generate_body_ws)
+                {
+                  col += substrprint (anc_data->body_ws, out);
+                }
+            }
+
+          /* print the tags, possibly generate whitespace */
+          col += merge_tags(anc_data->tags_str,
+                            loc_data->tags_str,
+                            rem_data->tags_str,
+                            col, generate_body_ws, ctxt, out);
+  
+          /* Post text */
+          if (loc_post_text_update)
+            col += substrprint (loc_data->post_text, out);
+          else if (rem_post_text_update)
+            col += substrprint (rem_data->post_text, out);
+          else
+            col += substrprint (anc_data->post_text, out);
+
+          /* Line break */
+          if (loc_linebreak_update)
+            col += substrprint (loc_data->linebreak, out);
+          else if (rem_linebreak_update)
+            col += substrprint (rem_data->linebreak, out);
+          else
+            col += substrprint (anc_data->linebreak, out);
+
         }
     }
   return;
@@ -997,25 +1540,15 @@ print_R (doc_ref *ref, print_ctxt *ctxt, doc_stream *out)
 static void
 print (org_heading *h, size_t index, print_ctxt *ctxt, doc_stream *out)
 {
-  int i = 0;
-  for (i = 0; i < h->data[index]->level; i++)
-    {
-      doc_stream_putc('*', out);
-    }
-  doc_stream_putc (' ', out);
-  substrprint (h->data[index]->text, out);
+  /* Print stars */
+  substrprint (h->data[index]->entire_text, out);
+
   return;
 }
 
-/**
- *
- */
 static void
 print_subelts (doc_ref *ref, print_ctxt *ctxt, doc_stream *out)
 {
-  /**
-   * @todo implement print_subelts
-   */
   org_heading *h = (org_heading *)doc_ref_get_elt (ref);
   doc_reflist_print (h->subtext, ctxt, out);
   doc_reflist_print (h->subheadings, ctxt, out);
@@ -1026,7 +1559,8 @@ static void
 org_heading_note_delete (doc_ref *ref, merge_ctxt *ctxt)
 {
   org_heading * heading = (org_heading *)doc_ref_get_elt(ref);
-  if (heading->key.length > 0)
+  if ((heading->key.length > 0) &&
+      (doc_ref_contains (ref, ANC_SRC)))
     {
       /* org_text does not have global matching, do nothing */
       smerger_register_delete (ctxt->global_smerger, ref, ctxt);
@@ -1050,13 +1584,13 @@ org_heading_note_insert (doc_ref *ref, merge_ctxt *ctxt)
     {
       if (doc_ref_contains (ref, ANC_SRC))
 	heading->moved[srctoindex (ANC_SRC)] = true;
-      
+
       if (doc_ref_contains (ref, REM_SRC))
 	heading->moved[srctoindex (REM_SRC)] = true;
 
       if (doc_ref_contains (ref, LOC_SRC))
 	heading->moved[srctoindex (LOC_SRC)] = true;
-  
+
       /* org_text does not have global matching, do nothing */
       smerger_register_insert (ctxt->global_smerger, ref, ctxt);
     }
@@ -1067,20 +1601,276 @@ org_heading_note_insert (doc_ref *ref, merge_ctxt *ctxt)
   return;
 }
 
-/**
- * @todo Implement org_heading_get_key.
- */
-
-static doc_key org_heading_key = {
-  .string = "abc",
-  .length = 3,
-};
+void
+org_heading_set_key (org_heading *h, char *string, size_t length)
+{
+  h->key.string = string;
+  h->key.length = length;
+  return;
+}
 
 static doc_key *
 org_heading_get_key (doc_elt * elt)
 {
-  /* org_text does not have global matching, do nothing */
-  /* this function should never be called? */
-
   return &((org_heading *) elt )->key;//  &org_heading_key;
+}
+
+static size_t
+parse_tags (gl_list_t tags, substr s)
+{
+  int ubound = 1;
+  int lbound = 1;
+  substr *tag;
+
+  for (ubound=1; ubound< s.length; ubound++)
+    {
+      if (s.string[ubound] == ':')
+        {
+          /* create a new tag element */
+          tag = malloc (sizeof (substr));
+          tag->length = (ubound -lbound);
+          tag->string = (s.string + lbound);
+
+          /* add it to the list */
+          gl_list_nx_add_last (tags, tag);
+
+          /* try to find the next element */
+          lbound = ubound+1;
+        }
+    }
+  return;
+}
+
+static size_t
+merge_tags (substr anc_str, substr loc_str, substr rem_str, size_t curr_col,
+	    bool gen_ws, print_ctxt *ctxt, doc_stream *out)
+{
+  /**
+   * @TODO try to maintain some semblance of the ordering
+   */
+
+  size_t char_count = 0;
+  /* assume that the two strings are both correctly setup as the
+     length of tags.  list diff the two tags, and print them assuming
+     they will start at the correct location */
+
+  /* scan the substrings and add them to a list */
+  gl_list_t anc_list = gl_list_nx_create_empty (GL_ARRAY_LIST, NULL, NULL,
+                                                NULL, true);
+  gl_list_t loc_list = gl_list_nx_create_empty (GL_ARRAY_LIST, NULL, NULL,
+                                                NULL, true);
+  gl_list_t rem_list = gl_list_nx_create_empty (GL_ARRAY_LIST, NULL, NULL,
+                                                NULL, true);
+
+  parse_tags (anc_list, anc_str);
+  parse_tags (loc_list, loc_str);
+  parse_tags (rem_list, rem_str);
+
+  char_count = anc_str.length + loc_str.length + rem_str.length + 1;
+  if (gl_list_size (anc_list))
+      char_count--;
+  if (gl_list_size (loc_list))
+      char_count--;
+  if (gl_list_size (rem_list))
+      char_count--;
+
+  /* combine the tags into one list */
+  /* if a tag is not in one of local or remote, mark the substr as 0
+     length in the ancestor.  If the element is in local or remote,
+     and anestor, mark local and remote substr as length 0
+
+     this strategy will not maintain the order when merging
+  */
+  gl_list_iterator_t anc_i, loc_i, rem_i;
+
+  anc_i = gl_list_iterator (anc_list);
+
+  substr *anc_tag, *loc_tag, *rem_tag;
+  bool loc_found = false;
+  bool rem_found = false;
+
+  /* filter out the nodes that match the ancestor */
+  while (gl_list_iterator_next (&anc_i, (const void **) &anc_tag, NULL))
+    {
+      loc_found = false;
+      rem_found = false;
+
+      loc_i = gl_list_iterator (loc_list);
+      rem_i = gl_list_iterator (rem_list);
+
+      while (gl_list_iterator_next (&loc_i, (const void **) &loc_tag, NULL))
+        {
+          if (substreql (*anc_tag, *loc_tag))
+            {
+              debug_msg (DOC, 5, "loc anc match\n");
+              /* found a match, remove from loc */
+              char_count -= (loc_tag->length + 1);
+              loc_tag->length = 0;
+              loc_found = true;
+              break;
+            }
+        }
+
+      while (gl_list_iterator_next (&rem_i, (const void **) &rem_tag, NULL))
+        {
+          if (substreql (*anc_tag, *rem_tag))
+            {
+              debug_msg (DOC, 5, "rem anc match\n");
+              /* found a match, remove from rem */
+              char_count -= (rem_tag->length + 1);
+              rem_tag->length = 0;
+              rem_found = true;
+              break;
+            }
+        }
+
+      if (!rem_found || !loc_found)
+        {
+          /* no match found, remove anc */
+          debug_msg (DOC, 5, "no anc match\n");
+          char_count -= (anc_tag->length + 1);
+          anc_tag->length = 0;
+        }
+    }
+
+  rem_i = gl_list_iterator (rem_list);
+  while (gl_list_iterator_next (&rem_i, (const void **) &rem_tag, NULL))
+    {
+      loc_found = false;
+      loc_i = gl_list_iterator (loc_list);
+      while (gl_list_iterator_next (&loc_i, (const void **) &loc_tag, NULL))
+        {
+          if (loc_tag->length > 0 && substreql (*rem_tag, *loc_tag))
+            {
+              /* found a match, remove from loc and print it */
+              debug_msg (DOC, 5, "rem loc match\n");
+              char_count -= (loc_tag->length + 1);
+              loc_tag->length = 0;
+              loc_found = true;
+              break;
+            }
+        }
+    }
+
+  /* print every element with a length of more than 0 */
+  bool close_mark = (char_count > 3);
+  if (close_mark && gen_ws)
+    {
+      debug_msg (DOC_ELT, 5, "Generating %d long body_ws\n",  
+		 (ctxt->rmargin - 1 - char_count - curr_col));
+      int i;
+      doc_stream_putc(' ', out);
+      //curr_col += 1;
+      for (i=0; i < (ctxt->rmargin - 1 - char_count - curr_col); i++)
+        {
+          doc_stream_putc(' ', out);
+        }
+    }
+
+  anc_i = gl_list_iterator (anc_list);
+  while (gl_list_iterator_next (&anc_i, (const void **) &anc_tag, NULL))
+    {
+      if (anc_tag->length > 0)
+        {
+          close_mark = true;
+          doc_stream_putc (':', out);
+          substrprint (*anc_tag, out);
+        }
+    }
+
+  rem_i = gl_list_iterator (rem_list);
+  while (gl_list_iterator_next (&rem_i, (const void **) &rem_tag, NULL))
+    {
+      if (rem_tag->length > 0)
+        {
+          /* found a match, remove from loc and print it */
+          doc_stream_putc (':', out);
+          substrprint (*rem_tag, out);
+          close_mark = true;
+        }
+    }
+
+  loc_i = gl_list_iterator (loc_list);
+  while (gl_list_iterator_next (&loc_i, (const void **) &loc_tag, NULL))
+    {
+      if (loc_tag->length > 0)
+        {
+          /* found a match, remove from loc and print it */
+          doc_stream_putc (':', out);
+          substrprint (*loc_tag, out);
+          close_mark = true;
+        }
+    }
+
+  if (close_mark)
+    doc_stream_putc (':', out);
+
+  return char_count;
+}
+
+
+/* For every element, check to see if some element is below it. Ignor
+ * NULLs.  Return a value indicating if the element was found below */
+bool
+org_heading_check_for_target (org_heading *this, org_heading* target)
+{
+  /* first check to see if the target exist anywhere below */
+  gl_list_iterator_t i;
+  i = gl_list_iterator (this->subheadings);
+  doc_ref *ref = NULL;
+  bool found =  false;
+  org_heading *heading;
+
+  debug_msg (DOC,3, "checking subheadings for target...\n");
+
+  while (!found
+	 && gl_list_iterator_next (&i, (const void **) &ref, NULL))
+    {
+      heading = (org_heading *)doc_ref_get_elt (ref);
+      if (heading == target)
+        {
+          debug_msg (DOC, 1, "found loop!!\n");
+          found = true;
+        }
+      else
+        {
+          found = org_heading_check_for_target(heading, target);
+        }
+    }
+  debug_msg (DOC,3, "found = %d\n", found);
+  gl_list_iterator_free (&i);
+  return found;
+}
+
+/* will call thes function on its children after it searches for
+   itself */
+bool
+org_heading_check_for_loop (org_heading *this)
+{
+  /* first check to see if the target exist anywhere below */
+  gl_list_iterator_t i;
+  i = gl_list_iterator (this->subheadings);
+  doc_ref *ref = NULL;
+  bool found =  false;
+  org_heading *heading;
+
+  debug_msg (DOC,3, "checking for loops\n");
+
+  if (org_heading_check_for_target (this, this))
+    {
+      debug_msg (DOC, 1, "found loop!!\n");
+      found = true;
+    }
+
+  debug_msg (DOC,3, "checking subheadings for loops\n");
+
+  while (gl_list_iterator_next (&i, (const void **) &ref, NULL))
+    {
+      heading = (org_heading *)doc_ref_get_elt (ref);
+
+      org_heading_check_for_loop (heading);
+    }
+
+  gl_list_iterator_free (&i);
+  return found;
 }
