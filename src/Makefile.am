@@ -13,7 +13,12 @@ org_merge_driver_SOURCES = \
 	org_document.c \
 	org_heading.c  \
 	org_text.c     \
-	smerger.c
+	org_property.c \
+	smerger.c      \
+	string_merge.c \
+	print_ctxt.c   \
+	merge_ctxt.c   \
+	parse_ctxt.c
 
 org_merge_driver_CFLAGS = -O0 -I$(top_srcdir)/gnulib/lib
 org_merge_driver_LDADD = $(top_srcdir)/gnulib/lib/libgnu.a
