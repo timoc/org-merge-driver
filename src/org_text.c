@@ -193,11 +193,10 @@ org_text_print_op (doc_ref *ref, print_ctxt *ctxt, doc_stream *out)
 		    {
 		      debug_msg(DOC, 3, "Update Conflict\n");
 		      /* Both Have Updated, Conflict ! */
-		      enter_content_conflict (ctxt, local_side, "Updated\n", out);
-		      substrprint (loc_data->text, out);
-		      enter_content_conflict (ctxt, remote_side, NULL, out);
-		      substrprint (rem_data->text, out);
-		      enter_content_conflict (ctxt, no_conflict, "Updated\n", out);
+		      line_diff3 (anc_data->text.string, anc_data->text.length,
+				  loc_data->text.string, loc_data->text.length,
+				  rem_data->text.string, rem_data->text.length,
+				  ctxt, out);
 		    }
 		}
 	    }
@@ -287,7 +286,7 @@ org_text_print_op (doc_ref *ref, print_ctxt *ctxt, doc_stream *out)
 }
 
 static bool
-org_text_isrelated_op (doc_ref *a_ref, doc_ref *b_ref, void *ctxt)
+org_text_isrelated_op (doc_ref *a_ref, doc_ref *b_ref, merge_ctxt  *ctxt)
 {
   /* Two text elements are related if they represent different
    * versions of the same element.  Text objects are always related to
@@ -299,7 +298,7 @@ org_text_isrelated_op (doc_ref *a_ref, doc_ref *b_ref, void *ctxt)
   doc_elt *elt_a = doc_ref_get_elt (a_ref);
   doc_elt *elt_b = doc_ref_get_elt (b_ref);
 
-  if ((doc_elt_get_type (elt_a) == ORG_TEXT) && 
+  if ((doc_elt_get_type (elt_a) == ORG_TEXT) &&
       (doc_elt_get_type (elt_b) == ORG_TEXT))
     {
       isrelated = true;
