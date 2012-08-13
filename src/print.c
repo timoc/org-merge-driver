@@ -3,9 +3,9 @@
 #include "print_ctxt.h"
 #include "print.h"
 
-static const char *start_mark  = ">>> ";
-static const char *middle_mark = "=== ";
-static const char *end_mark    = "<<< ";
+static const char *start_mark  = ">>>>>>> ";
+static const char *middle_mark = "======= ";
+static const char *end_mark    = "<<<<<<< ";
 
 void
 enter_structural_conflict (print_ctxt *ctxt, conflict_state state,
@@ -20,6 +20,9 @@ enter_structural_conflict (print_ctxt *ctxt, conflict_state state,
     }
   else
     return;
+
+  if (state != no_conflict)
+    ctxt->conflict_occurred = true;
 
   while (ctxt->structure_conflict != state )
     {
@@ -63,6 +66,9 @@ enter_content_conflict (print_ctxt *ctxt, conflict_state state,
 {
   if (ctxt->content_conflict == state)
     return;
+
+  if (state != no_conflict)
+    ctxt->conflict_occurred = true;
 
   while ( ctxt->content_conflict != state  )
     {

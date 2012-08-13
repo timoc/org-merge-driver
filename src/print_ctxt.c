@@ -27,6 +27,7 @@ print_ctxt_init (print_ctxt *ctxt)
   ctxt->nested_conflicts = no_conflict;
   ctxt->structure_conflict = no_conflict;
   ctxt->content_conflict = no_conflict;
+  ctxt->conflict_occurred = false;
   return;
 }
 

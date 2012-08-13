@@ -23,6 +23,7 @@ typedef struct print_ctxt
   bool           nested_conflicts;   /*< if there are nested conflicts        */
   conflict_state structure_conflict; /*< the current state of conflicts       */
   conflict_state content_conflict;   /*< the current state of conflicts       */
+  bool           conflict_occurred;   /* IF a conflict occured                 */
 } print_ctxt;
 
 /**

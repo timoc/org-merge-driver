@@ -147,6 +147,8 @@ main (int argc, char *argv[])
 	      debug_msg (MAIN, 3, "Printing\n\n");
 	      org_document_print (anc, &print_ctxt, out);
 
+              exit_status = (print_ctxt.conflict_occurred ? -1 : exit_status);
+
 	      fclose (rem_file);
 	    }
 	  else
