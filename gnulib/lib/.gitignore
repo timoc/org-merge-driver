@@ -10,13 +10,6 @@
 /xsize.h
 /gl_anyhash_list1.h
 /gl_anyhash_list2.h
-/gl_anyrbtree_list1.h
-/gl_anyrbtree_list2.h
-/gl_anytree_list1.h
-/gl_anytree_list2.h
-/gl_anytree_oset.h
-/gl_anytreehash_list1.h
-/gl_anytreehash_list2.h
 /gl_oset.c
 /gl_oset.h
 /gl_rbtree_oset.c
