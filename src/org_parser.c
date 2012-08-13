@@ -9,16 +9,17 @@
 #include "org_document.h"
 #include "org_heading.h"
 #include "org_text.h"
+#include "org_property.h"
 
-static void rec_parse_document (yyscan_t scanner, org_document *this);
+static void rec_parse_document (yyscan_t scanner, org_document *this, parse_ctxt *ctxt);
 
-static doc_elt *rec_parse_heading(yyscan_t scanner, org_heading *dc, int level);
+static doc_elt *rec_parse_heading(yyscan_t scanner, org_heading *dc, int level, parse_ctxt *ctxt);
 
 /* This parser needs some serious love.  Right now it assumes that the
  * only type of elements which can be nested are headings.
  */
 org_document *
-org_parse_file_stream (FILE * file, doc_src src)
+org_parse_file_stream (FILE * file, doc_src src, parse_ctxt *ctxt)
 {
   assert (file);
   debug_msg (PARSER, 3, "Parsing File\n");
@@ -48,13 +49,14 @@ org_parse_file_stream (FILE * file, doc_src src)
   e.curr_elt = NULL;
   e.curr_type = T_NOTHING;
   e.src = src;
+  e.ctxt = ctxt;
   yyset_extra (&e, scanner);
 
   /* Initialize doc_tree */
   org_document *document = org_document_create_empty (&org_document_ops);
 
   /* call the recursive function */
-  rec_parse_document (scanner, document);
+  rec_parse_document (scanner, document, ctxt);
 
   /* Destroy scanner */
   yylex_destroy (scanner);
@@ -63,7 +65,7 @@ org_parse_file_stream (FILE * file, doc_src src)
 }
 
 static void
-rec_parse_document (yyscan_t scanner, org_document *this)
+rec_parse_document (yyscan_t scanner, org_document *this, parse_ctxt *ctxt)
 {
   /* 1. get the text element
    * 2 check type
@@ -109,15 +111,22 @@ rec_parse_document (yyscan_t scanner, org_document *this)
 	      /* next level is at least more than this one */
 	      org_document_add_heading_last (this, src, (org_heading *) elt);
 	      elt = (doc_elt *)
-		rec_parse_heading(scanner, (org_heading *) elt, next_level);
+		rec_parse_heading(scanner, (org_heading *) elt, next_level, ctxt);
 	    }
 	}
-      else if (tok == T_ORG_TEXT)
+      else if (tok == T_ORG_TEXT || tok == T_ORG_PROPERTY)
 	{
 	  debug_msg (PARSER, 3, "Got Text\n");
-	  /* eat up all text elements below this one */
+
 	  org_document_add_text_last (this, src, (org_text *) elt);
 
+	  /* Get the next element from the scanner */
+	  tok = yylex (scanner);
+	  elt = yyget_extra (scanner) -> elt;
+	}
+      else
+	{
+	  debug_msg (PARSER, 2, "Got unknown element, skipping");
 	  /* Get the next element from the scanner */
 	  tok = yylex (scanner);
 	  elt = yyget_extra (scanner) -> elt;
@@ -136,7 +145,7 @@ rec_parse_document (yyscan_t scanner, org_document *this)
 }
 
 static doc_elt *
-rec_parse_heading(yyscan_t scanner, org_heading *this, int this_level)
+rec_parse_heading(yyscan_t scanner, org_heading *this, int this_level, parse_ctxt *ctxt)
 {
   /* 1. get the text element
    * 2 check type
@@ -180,20 +189,55 @@ rec_parse_heading(yyscan_t scanner, org_heading *this, int this_level)
 	    {
 	      debug_msg (PARSER, 3, "Adding Sub-Heading\n");
 	      /* next level is at least more than this one */
-	      org_heading_add_subheading_last (this, src, (org_heading *) elt);
+	      org_heading_add_subheading_last (this, src, elt);
 	      elt =
-		rec_parse_heading(scanner, (org_heading *)elt, next_level);
+		rec_parse_heading(scanner, (org_heading *)elt, next_level, ctxt);
 	    }
 	}
       else if (tok == T_ORG_TEXT)
 	{
 	  debug_msg (PARSER, 3, "Got Text\n");
 
-	  /* eat up all text elements below this one */
-	  org_heading_add_subtext_last (this, src, (org_text *) elt);
+	  org_heading_add_subtext_last (this, src, elt);
 	  /* Get the next element from the scanner */
 	  tok = yylex (scanner);
 	  elt = yyget_extra (scanner)-> elt;
+	}
+      else if (tok == T_ORG_PROPERTY)
+	{
+	  debug_msg (PARSER, 3, "Got property\n");
+	  /* if the property was a UID, add it to the heading.  Only
+	   * recognize the first ID below a heading */
+	  if (doc_elt_get_key((doc_elt *)this)->length == 0)
+	    {
+	      org_property *p = (org_property *) elt;
+	      char *key = org_property_get_key_string (p, src);
+	      size_t length = org_property_get_key_length (p, src);
+	      if (length == 2) /* length of ID */
+		{
+		  if (strncmp (key, "id", 2) == 0
+		      || strncmp (key, "ID", 2) == 0)
+		    {
+                      debug_msg (PARSER, 3, "Setting heading key to property");
+		      org_heading_set_key (this, org_property_get_value_string (p, src),
+                                                 org_property_get_value_length (p, src));
+		    }
+		}
+	    }
+
+	  /* add the property as a text element */
+	  org_heading_add_subtext_last (this, src, elt);
+
+	  /* Get the next element from the scanner */
+	  tok = yylex (scanner);
+	  elt = yyget_extra (scanner)-> elt;
+	}
+    else
+	{
+	  debug_msg (PARSER, 2, "Got unknown element, skipping");
+	  /* Get the next element from the scanner */
+	  tok = yylex (scanner);
+	  elt = yyget_extra (scanner) -> elt;
 	}
 
       if (tok == T_QUIT || elt == NULL)
