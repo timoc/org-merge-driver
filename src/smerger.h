@@ -11,6 +11,9 @@
 #ifndef SMERGER_H
 #define SMERGER_H
 
+typedef struct doc_ref doc_ref;
+typedef struct merge_ctxt merge_ctxt;
+
 /**
  * A search merger object. This object stores a database of document
  * elements which it tries to match and merge.

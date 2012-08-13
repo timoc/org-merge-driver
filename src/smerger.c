@@ -5,8 +5,10 @@
 #include "doc_ref.h"
 #include "smerger.h"
 
+#include "org_heading.h"
+
 static inline gl_list_t smerger_list_create ();
-static inline doc_ref *smerger_match_remove (gl_list_t list, doc_ref *ref);
+static inline doc_ref *smerger_match_remove (gl_list_t list, doc_ref *ref, merge_ctxt *ctxt);
 static inline int smerger_remove_exactly (gl_list_t list, doc_ref *ref);
 static inline int smerger_merge (doc_ref *ancestor, doc_ref *descendant, merge_ctxt *ctxt);
 static inline int smerger_store (gl_list_t list, doc_ref *ref);
@@ -42,7 +44,7 @@ smerger_list_create ()
   debug_msg (SMERGER, 5, "Begin\n");
   gl_list_t list =  gl_list_nx_create_empty (GL_RBTREE_LIST, smerger_equals,
 					     NULL, NULL, true);
-  debug_msg (SMERGER, 5, "Return = %d\n", list);
+  debug_msg (SMERGER, 5, "Return =%d\n", list);
   return list;
 }
 
@@ -55,7 +57,7 @@ smerger_free (smerger *sm)
   gl_list_free (sm->delete_list);
   free (sm);
 
-  debug_msg (SMERGER, 5, "Retun\n");
+  debug_msg (SMERGER, 5, "Return\n");
   return;
 }
 
@@ -65,7 +67,7 @@ smerger_register_insert (smerger *sm, doc_ref *ref, merge_ctxt *ctxt)
   debug_msg (SMERGER, 5, "Begin\n");
   int status = 0;
 
-  doc_ref *match = smerger_match_remove (sm->delete_list, ref);
+  doc_ref *match = smerger_match_remove (sm->delete_list, ref, ctxt);
   if (match != NULL)
     {
       smerger_merge (match, ref, ctxt);
@@ -75,7 +77,7 @@ smerger_register_insert (smerger *sm, doc_ref *ref, merge_ctxt *ctxt)
       smerger_store (sm->insert_list, ref);
     }
 
-  debug_msg (SMERGER, 5, "Return = %d", status);
+  debug_msg (SMERGER, 5, "Return =%d\n", status);
   return status;
 }
 
@@ -95,9 +97,9 @@ int
 smerger_register_delete (smerger *sm, doc_ref *ref, merge_ctxt *ctxt)
 {
   debug_msg (SMERGER, 5, "Begin\n");
-  int status = 0;;
+  int status = 0;
 
-  doc_ref *match = smerger_match_remove (sm->insert_list, ref);
+  doc_ref *match = smerger_match_remove (sm->insert_list, ref, ctxt);
   if (match != NULL)
     {
       smerger_merge (ref, match, ctxt);
@@ -126,11 +128,19 @@ smerger_unregister_delete(smerger *sm, doc_ref *ref)
 /**
  * Find a match for REF in LIST.
  */
+
 static inline doc_ref *
-smerger_match_remove (gl_list_t list, doc_ref *ref)
+smerger_match_remove (gl_list_t list, doc_ref *ref, merge_ctxt *ctxt)
 {
   debug_msg (SMERGER, 5, "Begin\n");
-
+  /*
+  if (SMERGER_PRINTLEVEL > 3)
+    {
+      debug_msg (SMERGER, 3, "Matching heading ='");
+      doc_elt_print (ref, NULL, stdout);
+      debug_msg (SMERGER, 3, "'\n");
+    }
+  */
   doc_ref        *match    = NULL;
   gl_list_node_t listnode  = NULL;
   int            last_pos  = 0;
@@ -157,7 +167,7 @@ smerger_match_remove (gl_list_t list, doc_ref *ref)
 	{
           match = (doc_ref *)gl_list_get_at (list, last_pos);
 	  bool isrelated = false;
-	  isrelated = doc_elt_isrelated (ref, match, NULL);
+	  isrelated = doc_elt_isrelated (ref, match, ctxt);
 	  debug_msg (SMERGER, 3, "Match isrelated =%d\n", isrelated);
 
 	  if (isrelated == true)
@@ -186,7 +196,7 @@ smerger_remove_exactly ( gl_list_t list, doc_ref *ref)
   /**
    * @todo Implement smerger_remove_exactly.
    */
-  
+
   debug_msg (SMERGER, 5, "Return =%d\n", status);
   return status;
 }
@@ -203,8 +213,19 @@ smerger_merge (doc_ref *ancestor, doc_ref *descendant, merge_ctxt *ctxt)
   int status = 0;
   doc_elt *anc_elt = doc_ref_get_elt (ancestor);
 
+  /* check for a circular conflict */
+  //doc_ref_set_elt (descendant, anc_elt);
+  //doc_ref_set_parent (descendant, ancestor->parent);
+  //doc_ref_check_for_circular_conflict (descendant);
+  // doc_ref_set_parent (ancestor,descendant->parent);
+
   doc_elt_merge (ancestor, descendant, ctxt);
-  doc_ref_set_elt (descendant, anc_elt);
+
+  //if (doc_elt_get_type (anc_elt) == ORG_HEADING)
+  //if (doc_ref_contains (descendant, LOC_SRC))
+  //{
+      //org_heading_set_doc_ref ((org_heading *)anc_elt, descendant);
+  //}
 
   debug_msg (SMERGER, 5, "Return =%d\n", status);
   return status;
@@ -266,9 +287,19 @@ doc_key_cmp (doc_key *a, doc_key *b)
   int cmp = 0;
   int minlength = (a->length < b->length) ? a->length : b->length;
 
-  cmp = strncmp (a->length, b->length, minlength);
+  if (SMERGER_PRINTLEVEL > 4)
+    {
+      debug_msg (SMERGER, 4, "A ='");
+      fwrite ( a->string, sizeof (char), a->length, stderr);
+      fprintf (stderr, "'\n");
+      debug_msg (SMERGER, 4, "B ='");
+      fwrite ( b->string, sizeof (char), b->length, stderr);
+      fprintf (stderr, "'\n");
+    }
 
-  if (cmp = 0)
+  cmp = strncmp (a->string, b->string, minlength);
+
+  if (cmp == 0)
     {
       if (a->length < b->length)
 	{
@@ -280,6 +311,6 @@ doc_key_cmp (doc_key *a, doc_key *b)
 	}
     }
 
-  debug_msg (SMERGER, 5, "Return = %d", cmp);
+  debug_msg (SMERGER, 5, "Return = %d\n", cmp);
   return cmp;
 }
