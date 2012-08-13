@@ -1,27 +1,11 @@
 #include <stdlib.h>
 #include "doc_stream.h"
+#include "print_ctxt.h"
 #include "print.h"
 
 static const char *start_mark  = ">>> ";
 static const char *middle_mark = "=== ";
 static const char *end_mark    = "<<< ";
-
-print_ctxt*
-print_ctxt_create_empty (void)
-{
-  print_ctxt *ctxt = malloc (sizeof (print_ctxt));
-  print_ctxt_init (ctxt);
-  return ctxt;
-}
-
-void
-print_ctxt_init (print_ctxt *ctxt)
-{
-  ctxt->depth = 0;
-  ctxt->print_state = print_merged;
-  ctxt->structure_conflict = no_conflict;
-  ctxt->content_conflict = no_conflict;
-}
 
 void
 enter_structural_conflict (print_ctxt *ctxt, conflict_state state,

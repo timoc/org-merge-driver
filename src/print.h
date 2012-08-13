@@ -5,9 +5,10 @@
 
 #ifndef PRINT_H
 #define PRINT_H
-
-#include <stdbool.h>
 #include "doc_stream.h"
+
+struct print_ctxt;
+typedef struct print_ctxt print_ctxt;
 
 /**
  * @todo Find a way to deal with advancing the print mode with the
@@ -39,33 +40,11 @@ typedef enum conflict_state
   } conflict_state;
 
 /**
- * @brief A context for printing doc_elt's in a tree.
- */
-typedef struct print_ctxt
-{
-  int            depth;              /*< The current depth in a document tree */
-  print_state    print_state;        /*< the current printing mode            */
-  bool           nested_conflicts;   /*< if there are netsed conflicts        */
-  conflict_state structure_conflict; /*< the current state of conflicts       */
-  conflict_state content_conflict;   /*< the current state of conflicts       */
-} print_ctxt;
-
-/**
- * @brief create and initialize a print context
- */
-print_ctxt* print_ctxt_create_empty (void);
-
-/**
- * @brief initialize a print_ctxt
- */
-void print_ctxt_init (print_ctxt *ctxt);
-
-/**
  * @brief enter a certain part of a structural conflict.
  *
  * This function enters a structural conflict.  If it is already in
  * the correct state, it will do nothing.  It will wrap up any content
- * conflicts before switching.
+ * conflicts before switching
  */
 void enter_structural_conflict (print_ctxt *ctxt, conflict_state state,
 				char* msg, doc_stream *out);
