@@ -1,31 +1,116 @@
+#include "config.h"
+#include <stdbool.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <ctype.h>
 #include <iconv.h>
-#include "debug.h"
+#include <string.h>
+#include <argp.h>
 
+#include "debug.h"
+#include "gl_list.h"
+#include "gl_array_list.h"
 #include "doc_stream.h"
 #include "doc_ref.h"
 #include "print.h"
-#include "org_document.h"
 #include "doc_elt.h"
-#include "doc_elt_ops.h"
+#include "org_document.h"
+//#include "doc_elt_ops.h"
 #include "org_parser.h"
-#include "smerger.h"
-int
+//#include "smerger.h"
+
+struct arguments;
+typedef struct arguments arguments;
+
+static error_t parse_opt (int key, char *arg, struct argp_state *state);
+static void arguments_set_default (arguments *arguments);
+
+const char *argp_program_version =
+  "org-merge-driver 0.1\n\
+Copywrite (C) 2012 Free Software Foundation, Inc\n\
+License GPLv3+: GNU GPL version 3 or later <http://gnu.org/licenses/gpl.html>\n\
+This is free software: you are free to change and redistribute it.\n\
+There is NO WARRANTY, to the extent permitted by law.";
+
+const char *argp_program_bug_address =
+  "<youngar17@gmail.com>";
+
+static char doc [] =
+  "org-merge-driver\n\
+A tool for performing 3 way merges of org-mode formatted plain text documents.";
+
+static char args_doc[] = "ANCESTOR LOCAL REMOTE [OUT]";
+
+static struct argp_option options[] = {
+  {"todo",      't',      "STATE",          0, "Specify an accepted todo state" },
+  {"priority",  'p',   "PRIORITY",          0, "Specify an accepted prority"},
+  {"tabwidth",  'W',      "WIDTH",          0, "The width of tabs in spaces"},
+  {"notabs",    'N',            0,          0, "Use only spaces in the output"},
+  {"usetabs",   'T',            0,          0, "Use tabs in the output"},
+  {"rmargin",   'm',     "COLUMN",          0, "Set the right margin of headings"},
+  { 0 }
+};
+
+struct arguments
+{
+  char      *paths[4];
+  gl_list_t todo_states;
+  gl_list_t priorities;
+  bool      verbose;
+  size_t    tab_width;
+  bool      use_tabs;
+  size_t    rmargin;
+};
+
+static struct argp argp = { options, parse_opt, args_doc, doc };
+
 main (int argc, char *argv[])
 {
-  /* Process command line arguments */
-  char *progname = argv[0];
-  FILE * out = NULL;
-  debug_msg (MAIN, 4, "Staring program\n");
-  if (argc < 4)
+  debug_msg (MAIN, 5, "Begin\n");
+  error_t exit_status = EXIT_SUCCESS;
+
+  /* Parse Arguments */
+  struct arguments arguments;
+  error_t error = argp_parse (&argp, argc, argv, 0, 0, &arguments);
+
+  /* Configure the contexts using arguments */
+
+  struct parse_ctxt parse_ctxt;
+  parse_ctxt_init (&parse_ctxt);
+  if (gl_list_size (arguments.todo_states) > 0)
     {
-      printf ("%s: missing operands\n", argv[0]);
+      parse_ctxt.todo_states = arguments.todo_states;
     }
-  if (argc == 5)
+  parse_ctxt_set_defaults (&parse_ctxt);
+
+  struct merge_ctxt loc_merge_ctxt;
+  merge_ctxt_init (&loc_merge_ctxt);
+  struct merge_ctxt rem_merge_ctxt;
+  merge_ctxt_init (&rem_merge_ctxt);
+  if (gl_list_size (arguments.priorities) > 0)
     {
-      out =  fopen ( argv[4], "w");
+      loc_merge_ctxt.priorities = arguments.priorities;
+      rem_merge_ctxt.priorities = arguments.priorities;
+    }
+  merge_ctxt_set_defaults (&loc_merge_ctxt);
+  merge_ctxt_set_defaults (&rem_merge_ctxt);
+
+  struct print_ctxt print_ctxt;
+  print_ctxt_init (&print_ctxt);
+  print_ctxt.tab_width = arguments.tab_width;
+  print_ctxt.use_tabs  = arguments.use_tabs;
+  print_ctxt.rmargin   = arguments.rmargin;
+  print_ctxt_set_defaults (&print_ctxt);
+
+  /* Open output file */
+  FILE * out = NULL;
+  if (arguments.paths[3] != NULL)
+    {
+      out =  fopen ( arguments.paths[3], "w");
+      if (out == NULL)
+	{
+	  printf ("Could not open OUT %s\nOutputting to stdin\n", arguments.paths[3]);
+	}
     }
   if (out == NULL)
     {
@@ -33,67 +118,172 @@ main (int argc, char *argv[])
       out = stdout;
     }
 
-  FILE *anc_file = fopen ( argv[1], "r");
+  FILE *anc_file = fopen ( arguments.paths[0], "r");
   if (anc_file != NULL)
     {
       debug_msg (MAIN, 4, "File 1 opened\n");
-      FILE *loc_file = fopen (argv[2], "r");
+      FILE *loc_file = fopen (arguments.paths[1], "r");
       if (loc_file != NULL)
 	{
 	  debug_msg (MAIN, 4, "File 2 opened\n");
-	  FILE *rem_file = fopen (argv[3], "r");
+	  FILE *rem_file = fopen (arguments.paths[2], "r");
 	  if (rem_file != NULL)
 	    {
 	      debug_msg (MAIN, 4, "File 3 opened\n");
 	      debug_msg (MAIN, 4, "Parsing Files\n\n");
-	      org_document *anc = org_parse_file_stream (anc_file, ANC_SRC);
-	      org_document *loc = org_parse_file_stream (loc_file, LOC_SRC);
-	      org_document *rem = org_parse_file_stream (rem_file, REM_SRC);
-#if MAIN_PRINTLEVEL >= 4
-	      struct print_ctxt dbgctxt;
-	      print_ctxt_init (&dbgctxt);
-	      debug_msg (MAIN, 3, "Printing Ancestor\n");
-	      org_document_print (anc, &dbgctxt, stderr);
-	      debug_msg (MAIN, 3, "Printing Local\n");
-	      org_document_print (loc, &dbgctxt, stderr);
-	      debug_msg (MAIN, 3, "Printing Remote\n");
-	      org_document_print (rem, &dbgctxt, stderr);
-#endif
-	      debug_msg (MAIN, 4, "Merging Files\n\n");
-	      debug_msg (MAIN, 4, "Merging anc and loc\n");
-	      merge_ctxt ctxt1;
-	      ctxt1.global_smerger = smerger_create ();
-	      org_document_merge (anc, loc, &ctxt1);
-	      debug_msg (MAIN, 4, "Merging anc and rem\n");
-	      merge_ctxt ctxt2;
-	      ctxt2.global_smerger = smerger_create ();
-	      org_document_merge (anc, rem, &ctxt2);
+	      org_document *anc = org_parse_file_stream (anc_file, ANC_SRC, &parse_ctxt);
+	      org_document *loc = org_parse_file_stream (loc_file, LOC_SRC, &parse_ctxt);
+	      org_document *rem = org_parse_file_stream (rem_file, REM_SRC, &parse_ctxt);
 
-	      struct print_ctxt ctxt;
-	      print_ctxt_init (&ctxt);
-	      debug_msg (MAIN, 3, "Printing Ancestor\n\n");
-	      org_document_print (anc, &ctxt, stdout);
-	      /*
-	      debug_msg (MAIN, 4, "Printing Files\n\n");
-	      merge_print_ctxt mp_ctxt;
-	      mp_ctxt.depth = 0;
-	      mp_ctxt.content_conflict_state = 0;
-	      mp_ctxt.structural_conflict_state=0;
-	      merge_print (mtree, &mp_ctxt, out);
-	      */
+	      debug_msg (MAIN, 4, "Merging Files\n\n");
+
+	      debug_msg (MAIN, 4, "Merging anc and loc\n");
+	      org_document_merge (anc, loc, &loc_merge_ctxt);
+	      debug_msg (MAIN, 4, "Merging anc and rem\n");
+	      org_document_merge (anc, rem, &rem_merge_ctxt);
+
+              org_document_check_for_loop (anc);
+
+	      debug_msg (MAIN, 3, "Printing\n\n");
+	      org_document_print (anc, &print_ctxt, out);
+
 	      fclose (rem_file);
+	    }
+	  else
+	    {
+	      printf ("Could not open REMOTE %s\n", arguments.paths[2]);
 	    }
 	  fclose (loc_file);
 	}
+      else
+	{
+	  printf ("Could not open LOCAL %s\n", arguments.paths[1]);
+	}
       fclose(anc_file);
     }
+  else
+    {
+      printf ("Could not open ANCESTOR %s\n", arguments.paths[0]);
+    }
 
-
-  if (out != stdout && out != NULL)
+  if (out != stdout)
     {
       fclose (out);
     }
-  debug_msg (MAIN, 4, "Closing program\n");
+
   /* Exit */
-  return EXIT_SUCCESS;
+  debug_msg (MAIN, 5, "Return =%d\n", exit_status);
+  return exit_status;
+}
+
+void
+arguments_set_default (arguments *arguments)
+{
+  debug_msg (MAIN, 5, "Begin\n");
+
+  arguments->paths[0] = NULL;
+  arguments->paths[1] = NULL;
+  arguments->paths[2] = NULL;
+  arguments->paths[3] = NULL;
+  arguments->todo_states =
+    gl_list_nx_create_empty (GL_ARRAY_LIST, NULL, NULL, NULL, true);
+  arguments->priorities  =
+    gl_list_nx_create_empty (GL_ARRAY_LIST, NULL, NULL, NULL, true);
+  arguments->verbose = 0;
+  arguments->tab_width = 8;
+  arguments->use_tabs = false;
+  arguments->rmargin = 77;
+
+  debug_msg (MAIN, 5, "Return\n");
+  return;
+}
+
+static error_t
+parse_opt (int key, char *arg, struct argp_state *state)
+{
+  struct arguments *arguments = state->input;
+  error_t retvalue = 0;
+  debug_msg (MAIN, 3, "opt key=%c, arg=%s\n", key, arg);
+
+  switch (key)
+    {
+    case ARGP_KEY_INIT:
+      /* Initialize defaults */
+      arguments_set_default (arguments);
+      break;
+
+    case ARGP_KEY_NO_ARGS:
+      argp_usage (state);
+      break;
+
+    case 'v':
+      arguments->verbose = true;
+      break;
+
+    case 't':
+      gl_list_nx_add_last (arguments->todo_states, arg);
+      break;
+
+    case 'p':
+      gl_list_nx_add_last (arguments->priorities, arg);
+      break;
+
+    case 'W':
+      {
+	int tab_width = atoi (arg);
+	if (tab_width > 0)
+	  {
+	    arguments->tab_width = tab_width;
+	  }
+	else
+	  {
+	    argp_error (state, "Specified tab width must be a positive integer.\n");
+	  }
+      }
+      break;
+
+    case 'N':
+      arguments->use_tabs = false;
+      break;
+
+    case 'T':
+      arguments->use_tabs =  true;
+      break;
+
+    case 'm':
+      {
+	int rmargin = atoi (arg);
+	if (rmargin > 0)
+	  {
+	    arguments->rmargin = rmargin;
+	  }
+	else
+	  {
+	    argp_error (state, "Specified right margin column must be a positive interger.\n");
+	  }
+      }
+      break;
+
+    case ARGP_KEY_ARG:
+      if (state->arg_num < 5)
+	{
+	  arguments->paths[state->arg_num] = arg;
+	}
+      else
+	{
+	  argp_error (state, "Too many arguments.\n");
+        }
+      break;
+
+    case ARGP_KEY_END:
+      if (state->arg_num < 2)
+        {
+          argp_error (state, "Too few arguments.\n");
+        }
+      break;
+
+    default:
+      retvalue = ARGP_ERR_UNKNOWN;
+    }
+  return retvalue;
 }
