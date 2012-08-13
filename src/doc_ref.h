@@ -14,6 +14,7 @@
 struct doc_elt;
 typedef struct doc_elt doc_elt;
 typedef struct merge_ctxt merge_ctxt;
+typedef struct doc_ref doc_ref;
 
 /**
  * Indicates an input document (ancestor, local, or source). Used to
@@ -34,6 +35,8 @@ typedef struct doc_ref
 {
   doc_src src;
   doc_elt *elt;
+  doc_ref *parent;
+  bool circular_conflict;
 } doc_ref;
 
 /* Constructor and destructor */
@@ -50,6 +53,14 @@ static inline void doc_ref_set_src (doc_ref *ref, doc_src src);
 static inline void doc_ref_add_src (doc_ref *ref, doc_src src);
 static inline bool doc_ref_isexactly (doc_ref *ref, doc_src src);
 static inline bool doc_ref_contains (doc_ref *ref, doc_src src);
+static inline doc_ref *doc_ref_get_parent (doc_ref *ref);
+static inline void doc_ref_set_paraent (doc_ref *ref, doc_ref* parent);
+
+/* circular conflict */
+static inline bool doc_ref_is_circular_conflict (doc_ref *ref);
+static inline void doc_ref_set_circular_conflict (doc_ref *ref, bool conflict);
+/* check for a circulor conflic, and mark it in all doc_refs */
+static inline bool dec_ref_check_for_circular_conflict (doc_ref *ref);
 
 /*
  * doc_reflist
@@ -65,7 +76,7 @@ bool doc_reflist_isupdated (gl_list_t reflist);
 /**
  * @brief Merge two doc_ref lists together.  This function changes ancestor.
  */
-void doc_reflist_merge (gl_list_t ancestor, gl_list_t descendant, merge_ctxt *ctxt);
+void doc_reflist_merge (doc_ref *parent, gl_list_t ancestor, gl_list_t descendant, merge_ctxt *ctxt);
 
 /**
  * @brief print a list of ref_docs
@@ -82,6 +93,8 @@ doc_ref_create_empty ()
   doc_ref *d = malloc (sizeof (doc_ref));
   d->elt = NULL;
   d->src = 0;
+  d->parent = NULL;
+  d->circular_conflict = false;
   return d;
 }
 
@@ -134,6 +147,71 @@ static inline bool
 doc_ref_contains (doc_ref *ref, doc_src src)
 {
   return (ref->src & src);
+}
+
+
+static inline doc_ref *doc_ref_get_parent (doc_ref *ref)
+{
+  return ref->parent;
+}
+
+static inline void doc_ref_set_parent (doc_ref *ref, doc_ref* parent)
+{
+  ref->parent = parent;
+  return;
+}
+
+static inline bool doc_ref_is_circular_conflict (doc_ref *ref)
+{
+  return ref->circular_conflict;
+}
+
+static inline void doc_ref_set_circular_conflict (doc_ref *ref, bool conflict)
+{
+  ref->circular_conflict = conflict;
+}
+
+/* check for a circulor conflict, and mark it in all doc_refs */
+static inline bool doc_ref_check_for_circular_conflict (doc_ref *ref)
+{
+  bool exit = false;
+  bool conflict = false;
+
+  doc_ref *parent = doc_ref_get_parent (ref);
+
+  while ((parent != NULL)
+          && (!conflict)
+          && !(doc_ref_is_circular_conflict(parent)))
+    {
+      printf ("checking parent par=%d, ref=%d\n",
+              doc_ref_get_elt (parent), doc_ref_get_elt (ref));
+
+      if (doc_ref_get_elt (parent) == doc_ref_get_elt (ref))
+        {
+          printf ("CIRCULAR CONFLICT\n");
+          conflict = true;
+        }
+      parent = doc_ref_get_parent ( parent );
+    }
+
+  /* set the doc_refs as having a conflict, if there was one */
+  exit = false;
+  if (conflict)
+    {
+      doc_ref * parent = doc_ref_get_parent (ref);
+      while ( (parent != NULL) && (!exit))
+        {
+          if (doc_ref_get_elt (parent) == doc_ref_get_elt (ref))
+            {
+              exit = true;
+            }
+          doc_ref_set_circular_conflict (parent, true);
+          parent = doc_ref_get_parent (parent);
+        }
+    }
+
+  printf ("conflict = %d\n", conflict);
+  return conflict;
 }
 
 #endif /* DOC_REF_H */

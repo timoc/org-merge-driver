@@ -83,7 +83,8 @@ static int  is_related  (struct context *ctxt, OFFSET xoff, OFFSET yoff);
   mapped_state *a_state;			\
   mapped_state *d_state;			\
   gl_list_t     ancestor;			\
-  gl_list_t     descendant;
+  gl_list_t     descendant;			\
+  merge_ctxt   *merge_ctxt;
 
 #define NOTE_DELETE(ctxt, xoff) note_delete (ctxt, xoff)
 #define NOTE_INSERT(ctxt, yoff) note_insert (ctxt, yoff)
@@ -114,13 +115,13 @@ is_related (struct context *ctxt, OFFSET xoff, OFFSET yoff)
   doc_ref *a_ref = (doc_ref * )gl_list_get_at (ctxt->ancestor, xoff);
   doc_ref *d_ref = (doc_ref *)gl_list_get_at (ctxt->descendant, yoff);
 
-  int result = doc_elt_isrelated (a_ref, d_ref, NULL);
+  int result = doc_elt_isrelated (a_ref, d_ref, ctxt->merge_ctxt);
   debug_msg (MERGE, 4, "comparing (%d, %d)=%d\n", xoff, yoff, result);
   return result;
 }
 
 void
-doc_reflist_merge (gl_list_t ancestor, gl_list_t descendant, merge_ctxt *merge_ctxt)
+doc_reflist_merge (doc_ref *parent, gl_list_t ancestor, gl_list_t descendant, merge_ctxt *merge_ctxt)
 {
   /* First, create a mapped_state for every element that will be mapped.
    * Compare the two strigs marking mapped and unmapped nodes.  Then,
@@ -148,6 +149,7 @@ doc_reflist_merge (gl_list_t ancestor, gl_list_t descendant, merge_ctxt *merge_c
   ctxt.a_state    = a_state;
   ctxt.ancestor   = ancestor;
   ctxt.descendant = descendant;
+  ctxt.merge_ctxt = merge_ctxt;
 
   /* Allocate data for the algorithm to use*/
   size_t diags = a_size + d_size + 3;
@@ -231,9 +233,15 @@ doc_reflist_merge (gl_list_t ancestor, gl_list_t descendant, merge_ctxt *merge_c
       if (next == 1)
 	{
 	  /* Insert an unmatched node */
-	  debug_msg (MERGE, 3, "Inserting node\n");
+	  debug_msg (MERGE, 3, "Inserting node d_index=%d\n", d_index);
 	  doc_ref * d_ref = (doc_ref *) gl_list_get_at (descendant, d_index);
 	  gl_list_nx_add_at (ancestor, a_index, (void *) d_ref);
+
+          /* check for a circular conflict */
+          //doc_ref_set_parent (d_ref, parent);
+
+          /* this next line should not be necessary */
+          //doc_ref_check_for_circular_conflict (d_ref);
 
 	  //mark_insert_children ();
 	  doc_elt_note_insert (d_ref, merge_ctxt);
@@ -246,8 +254,8 @@ doc_reflist_merge (gl_list_t ancestor, gl_list_t descendant, merge_ctxt *merge_c
       else if (next == 2)
 	{
 	  /* Delete an unmatched node */
-	  debug_msg (MERGE, 3, "Removing node\n");
-	  doc_ref * a_ref = (doc_ref *) gl_list_get_at (ancestor, d_index);
+	  debug_msg (MERGE, 3, "Removing node a_index=%d\n", a_index);
+	  doc_ref * a_ref = (doc_ref *) gl_list_get_at (ancestor, a_index);
 
 	  // mark_remove_children (m_child, src);
 	  doc_elt_note_delete (a_ref, merge_ctxt);
@@ -270,8 +278,9 @@ doc_reflist_merge (gl_list_t ancestor, gl_list_t descendant, merge_ctxt *merge_c
 	  doc_elt_merge (a_ref, d_ref, merge_ctxt);
 
 	  /* make the doc_refs point to the same element */
-	  doc_ref_set_elt (d_ref, doc_ref_get_elt (a_ref) );
-
+	  //doc_ref_set_elt (d_ref, doc_ref_get_elt (a_ref) );
+          //doc_ref_set_parent (d_ref, doc_ref_get_parent (a_ref));
+          //printf ("merging docrefs, par=%d, ref=%d\n", doc_ref_get_elt (a_ref), doc_ref_get_elt (d_ref));
 	  a_index++;
 	  d_index++;
 	}
