@@ -16,5 +16,6 @@
 #define doc_stream_close fclose
 #define doc_stream_putc putc
 #define doc_stream_puts fputs
+#define doc_stream_fwrite fwrite
 
 #endif
