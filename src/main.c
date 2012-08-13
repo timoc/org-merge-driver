@@ -69,9 +69,11 @@ main (int argc, char *argv[])
   debug_msg (MAIN, 5, "Begin\n");
   error_t exit_status = EXIT_SUCCESS;
 
+
   /* Parse Arguments */
   struct arguments arguments;
   error_t error = argp_parse (&argp, argc, argv, 0, 0, &arguments);
+
 
   /* Configure the contexts using arguments */
 
@@ -102,21 +104,12 @@ main (int argc, char *argv[])
   print_ctxt.rmargin   = arguments.rmargin;
   print_ctxt_set_defaults (&print_ctxt);
 
-  /* Open output file */
-  FILE * out = NULL;
-  if (arguments.paths[3] != NULL)
-    {
-      out =  fopen ( arguments.paths[3], "w");
-      if (out == NULL)
-	{
-	  printf ("Could not open OUT %s\nOutputting to stdin\n", arguments.paths[3]);
-	}
-    }
-  if (out == NULL)
-    {
-      debug_msg (MAIN, 4, "Setting output to stdout\n");
-      out = stdout;
-    }
+
+  /* Parse input files */
+
+  org_document *anc = NULL;
+  org_document *loc = NULL;
+  org_document *rem = NULL;
 
   FILE *anc_file = fopen ( arguments.paths[0], "r");
   if (anc_file != NULL)
@@ -131,46 +124,73 @@ main (int argc, char *argv[])
 	    {
 	      debug_msg (MAIN, 4, "File 3 opened\n");
 	      debug_msg (MAIN, 4, "Parsing Files\n\n");
-	      org_document *anc = org_parse_file_stream (anc_file, ANC_SRC, &parse_ctxt);
-	      org_document *loc = org_parse_file_stream (loc_file, LOC_SRC, &parse_ctxt);
-	      org_document *rem = org_parse_file_stream (rem_file, REM_SRC, &parse_ctxt);
-
-	      debug_msg (MAIN, 4, "Merging Files\n\n");
-
-	      debug_msg (MAIN, 4, "Merging anc and loc\n");
-	      org_document_merge (anc, loc, &loc_merge_ctxt);
-	      debug_msg (MAIN, 4, "Merging anc and rem\n");
-	      org_document_merge (anc, rem, &rem_merge_ctxt);
-
-              org_document_check_for_loop (anc);
-
-	      debug_msg (MAIN, 3, "Printing\n\n");
-	      org_document_print (anc, &print_ctxt, out);
-
-              exit_status = (print_ctxt.conflict_occurred ? -1 : exit_status);
-
+	      anc = org_parse_file_stream (anc_file, ANC_SRC, &parse_ctxt);
+	      loc = org_parse_file_stream (loc_file, LOC_SRC, &parse_ctxt);
+	      rem = org_parse_file_stream (rem_file, REM_SRC, &parse_ctxt);
 	      fclose (rem_file);
 	    }
 	  else
 	    {
-	      printf ("Could not open REMOTE %s\n", arguments.paths[2]);
+	      fprintf (stderr, "Could not open REMOTE %s\n", arguments.paths[2]);
+              exit_status = 2;
 	    }
 	  fclose (loc_file);
 	}
       else
 	{
-	  printf ("Could not open LOCAL %s\n", arguments.paths[1]);
+	  fprintf (stderr, "Could not open LOCAL %s\n", arguments.paths[1]);
+          exit_status = 2;
 	}
       fclose(anc_file);
     }
   else
     {
-      printf ("Could not open ANCESTOR %s\n", arguments.paths[0]);
+      fprintf (stderr, "Could not open ANCESTOR %s\n", arguments.paths[0]);
+      exit_status = 2;
     }
 
-  if (out != stdout)
+  if ((anc != NULL) && (loc != NULL) && (rem != NULL))
     {
-      fclose (out);
+      /* Merge files */
+      debug_msg (MAIN, 4, "Merging Files\n\n");
+      debug_msg (MAIN, 4, "Merging anc and loc\n");
+      org_document_merge (anc, loc, &loc_merge_ctxt);
+      debug_msg (MAIN, 4, "Merging anc and rem\n");
+      org_document_merge (anc, rem, &rem_merge_ctxt);
+
+      org_document_check_for_loop (anc);
+
+      debug_msg (MAIN, 3, "Printing\n\n");
+
+
+      /* Print output */
+      /* Open output file */
+      FILE * out = NULL;
+      if (arguments.paths[3] != NULL)
+        {
+          out =  fopen ( arguments.paths[3], "w");
+          if (out == NULL)
+            {
+              fprintf (stderr, "Could not open OUT %s\n", arguments.paths[3]);
+              exit_status = 2;
+            }
+        }
+      else
+        {
+          debug_msg (MAIN, 4, "Setting output to stdout\n");
+          out = stdout;
+        }
+
+      if (out != NULL)
+        {
+          org_document_print (anc, &print_ctxt, out);
+          exit_status = (print_ctxt.conflict_occurred ? 1 : exit_status);
+
+          if (out != stdout)
+            {
+              fclose (out);
+            }
+        }
     }
 
   /* Exit */
