@@ -6,7 +6,6 @@
 #include "gl_array_list.h"
 #include "parse_ctxt.h"
 
-
 static const size_t default_todo_states_size = 2;
 static const char* default_todo_states[] = {"TODO", "DONE"};
 
@@ -16,6 +15,7 @@ void
 parse_ctxt_init (parse_ctxt *ctxt)
 {
   ctxt->todo_states = NULL;
+  ctxt->current_level = 0;
   return;
 }
 
@@ -26,7 +26,7 @@ parse_ctxt_set_defaults (parse_ctxt *ctxt)
     {
       ctxt->todo_states = parse_ctxt_create_default_todo_states ();
     }
-
+  ctxt->current_level = 0;
   return;
 }
 

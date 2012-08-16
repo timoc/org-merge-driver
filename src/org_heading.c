@@ -21,6 +21,7 @@
 #include "org_heading.h"
 #include "org_text.h"
 
+
 /* Forward Declarations */
 /* org_heading_data */
 typedef struct org_heading_data org_heading_data;
@@ -33,8 +34,8 @@ static bool org_heading_subelts_isupdated (org_heading *heading);
 static bool compare_body_text (org_heading_data *a_data,
 			       org_heading_data *b_data, merge_ctxt *ctxt);
 
-static size_t merge_tags (substr anc_str, substr loc_str, substr rem_sub, 
-			  size_t curr_col, bool gen_ws, print_ctxt *ctxt, 
+static size_t merge_tags (substr anc_str, substr loc_str, substr rem_sub,
+			  size_t curr_col, bool gen_ws, print_ctxt *ctxt,
 			  doc_stream *out);
 
 static void print_LU_RU (doc_ref *ref, print_ctxt *ctxt, doc_stream *out);
@@ -51,6 +52,7 @@ static void print_L (doc_ref *ref, print_ctxt *ctxt, doc_stream *out);
 static void print_R (doc_ref *ref, print_ctxt *ctxt, doc_stream *out);
 
 static void print (org_heading *h, size_t index, print_ctxt *ctxt, doc_stream *out);
+static int print_stars (org_heading *h, size_t index, print_ctxt *ctxt, doc_stream *out);
 static void print_subelts (doc_ref *ref, print_ctxt *ctxt, doc_stream *out);
 
 /* merging helpers */
@@ -91,15 +93,19 @@ doc_elt_ops org_heading_ops = {
 typedef struct org_heading_data
 {
   int       level;        /*< The heading level, number of stars. */
+  int       rel_level;    /*< The relative heading level */
   substr    entire_text;  /*< The complete heading text. No stars. */
   substr    lead_ws;      /*< Whitespace between stars and content. */
   substr    todo;         /*< The todo state substring */
   substr    body_text;    /*< The basic heading text */
   substr    body_ws;      /*< Whitespace between the body and any tags.  */
   substr    tags_str;     /*< The tags, as a substring rather than a list. */
-  //gl_list_t tags;         /*< A list of all tags. */
   substr    post_text;    /*< Any text after tags. */
   substr    linebreak;    /*< Any linebreaks. */
+
+  bool global_search_merge;
+  bool local_list_merge;
+
   property *uid;
 } org_heading_data;
 
@@ -109,7 +115,6 @@ typedef struct org_heading
   doc_elt           elt;          /*< The element interface. */
   org_heading_data* data[3];      /*< The data for each elt version. */
   bool              isupdated[3]; /*< Indicates if a corresponding data entry is updated. */
-  bool              moved[2];     /*< Indicates if a corresponding vesion was moved. */
   gl_list_t         subtext;      /*< A list of children text elements. */
   gl_list_t         subheadings;  /*< A list of children heading elements. */
   doc_key           key;
@@ -216,6 +221,27 @@ void org_heading_set_doc_ref (org_heading *heading, doc_ref *ref)
   return;
 }
 
+/**
+ * This function is called when an org_heading is parseded, and placed
+ * into a document tree.  This is called after org_heading_
+ */
+void
+org_heading_set_parse_ctxt (org_heading *heading, doc_src src, parse_ctxt *ctxt)
+{
+  /* Set the relative level of the heading.  Use the final context of
+   * this heading, and it's parsed absolute heading level, to
+   * determine
+   */
+  size_t index = srctoindex (src);
+  heading->data[index]->rel_level = (heading->data[index]->level
+                                     - ctxt->current_level);
+
+  return;
+ }
+
+/**
+ * This function is called by the parser.  Set entire text is a subparser
+ */
 void
 org_heading_set_entire_text (org_heading *heading, char *string, int length,
 			     doc_src src, parse_ctxt *ctxt)
@@ -260,8 +286,14 @@ org_heading_set_entire_text (org_heading *heading, char *string, int length,
 	  break;
 	}
     }
-  heading->data[index]->level = count;
+  heading->data[index]->level = (count);
+  heading->data[index]->rel_level = (count - ctxt->current_level);
+
   lbound = lbound + count;
+
+  debug_msg (ORG_HEADING, 3, "Parse ABS LVL=%d, REL LVL=%d\n",
+             heading->data[index]->level,
+             heading->data[index]->rel_level);
 
   /* Parse lead_whitespace:
    * This is the whitespace between the stars and heading.
@@ -518,32 +550,41 @@ org_heading_isrelated_op (doc_ref *a_ref, doc_ref *b_ref, merge_ctxt *ctxt)
 
       assert (b_data && a_data);
 
-      /* compare the key if it exists, use the heading body
-         otherwise */
-      if (a_heading->key.length > 0)
+      /* check if this element is already mapped,  IF it is, make sure
+         it is only related to its other */
+      if ((a_heading->data[b_index] != NULL)
+          || (b_heading->data[a_index] != NULL))
         {
-          if (b_heading->key.length > 0)
-            {
-              isrelated = doc_key_eql (&(a_heading->key), &(b_heading->key));
-            }
-          else
-            {
-              isrelated = false;
-            }
+          isrelated = (a_heading == b_heading);
         }
       else
         {
-          if (b_heading->key.length > 0)
+          /* compare the key if it exists, use the heading body
+             otherwise */
+          if (a_heading->key.length > 0)
             {
-              isrelated = false;
+              if (b_heading->key.length > 0)
+                {
+                  isrelated = doc_key_eql (&(a_heading->key), &(b_heading->key));
+                }
+              else
+                {
+                  isrelated = false;
+                }
             }
           else
             {
-              isrelated = compare_body_text (a_data, b_data, ctxt);
-            } /* end not key, so compare the lines */
-        }/* end missing 1 key */
-    } /* end same types of element */
-
+              if (b_heading->key.length > 0)
+                {
+                  isrelated = false;
+                }
+              else
+                {
+                  isrelated = compare_body_text (a_data, b_data, ctxt);
+                } /* end not key, so compare the lines */
+            }/* end missing 1 key */
+        } /* end same types of element */
+    }
   return isrelated;
 }
 
@@ -608,7 +649,7 @@ compare_body_text (org_heading_data *a_heading_data,
       /* check for cookies.
        * priority cookie: "[#ABC]"
        * statistics:      "[535/5353]"
-       *               or "[902%]" 
+       *               or "[902%]"
        */
       if ( (a_i < a_body.length) &&
            (a_body.string[a_i] == '[') )
@@ -875,13 +916,15 @@ org_heading_merge_op (doc_ref *a_ref, doc_ref *b_ref, merge_ctxt *ctxt)
    * Overwrite an org_heading data if one already exists.
    */
 
-  debug_msg (DOC_ELT, 3, "Merging org_heading\n");
+  debug_msg (ORG_HEADING, 3, "Merging org_heading\n");
 
   org_heading *a_heading = (org_heading *) doc_ref_get_elt (a_ref);
   org_heading *b_heading = (org_heading *) doc_ref_get_elt (b_ref);
 
   assert (a_heading != NULL);
   assert (b_heading != NULL);
+
+  /* check if the elements have already been merged */
 
   /* merge the data of the elements.  Ignore the doc_src sources, and
    * check if the data exists in the heading to copy over */
@@ -896,9 +939,25 @@ org_heading_merge_op (doc_ref *a_ref, doc_ref *b_ref, merge_ctxt *ctxt)
 
   /* merge the doc_src of the elements */
 
-  /* Merge the movement flags of the elements */
-  a_heading->moved[LOC_INDEX] = a_heading->moved[LOC_INDEX] || b_heading->moved[LOC_INDEX];
-  a_heading->moved[REM_INDEX] = a_heading->moved[REM_INDEX] || b_heading->moved[REM_INDEX];
+  /* Deal with match strategy specific behaviour */
+  if (ctxt->strategy == GLOBAL_SEARCH_MERGE)
+    {
+      if (b_heading->data[ANC_INDEX] != NULL)
+	a_heading->data[ANC_INDEX]->global_search_merge = true;
+      if (b_heading->data[LOC_INDEX] != NULL)
+	a_heading->data[LOC_INDEX]->global_search_merge = true;
+      if (b_heading->data[REM_INDEX] != NULL)
+	a_heading->data[REM_INDEX]->global_search_merge = true;
+    }
+  else if (ctxt->strategy == LOCAL_LIST_MERGE)
+    {
+      if (b_heading->data[ANC_INDEX] != NULL)
+	a_heading->data[ANC_INDEX]->local_list_merge = true;
+      if (b_heading->data[LOC_INDEX] != NULL)
+	a_heading->data[LOC_INDEX]->local_list_merge = true;
+      if (b_heading->data[REM_INDEX] != NULL)
+	a_heading->data[REM_INDEX]->local_list_merge = true;
+    }
 
   /* Merge the children elements */
   debug_msg (DOC_ELT, 5, "Merging heading subtext\n");
@@ -1096,10 +1155,24 @@ print_LU_RU (doc_ref *ref, print_ctxt *ctxt, doc_stream *out)
 {
   debug_msg (DOC_ELT, 5, "Begin\n");
   org_heading *h = (org_heading *)doc_ref_get_elt (ref);
-  bool loc_moved = h->moved[LOC_INDEX];
-  bool rem_moved = h->moved[REM_INDEX];
+  bool loc_moved = (h->data[LOC_INDEX]->global_search_merge
+		    && !h->data[LOC_INDEX]->local_list_merge);
+  bool rem_moved =( h->data[REM_INDEX]->global_search_merge
+		    && !h->data[REM_INDEX]->local_list_merge);
+
   bool loc_ishere = doc_ref_contains (ref, LOC_SRC);
   bool rem_ishere = doc_ref_contains (ref, REM_SRC);
+
+  debug_msg (ORG_HEADING, 4,
+             "LOC: local_list_merge =%d, global_search_merge =%d\n",
+             h->data[LOC_INDEX]->local_list_merge,
+             h->data[LOC_INDEX]->global_search_merge);
+
+
+  debug_msg (ORG_HEADING, 4,
+             "REM: local_list_merge =%d, global_search_merge =%d\n",
+             h->data[REM_INDEX]->local_list_merge,
+             h->data[REM_INDEX]->global_search_merge);
 
   if (loc_moved)
     {
@@ -1113,22 +1186,22 @@ print_LU_RU (doc_ref *ref, print_ctxt *ctxt, doc_stream *out)
                 }
               else
                 {
-                  enter_structural_conflict (ctxt, local_side, "Moved\n", out);
+                  enter_movement_conflict (ctxt, local_side, "Moved\n", out);
                   print_LR (ref, ctxt, out);
                   print_subelts (ref, ctxt, out);
-                  enter_structural_conflict (ctxt, remote_side, NULL, out);
-                  enter_structural_conflict (ctxt, no_conflict, "Moved\n", out);
+                  enter_movement_conflict (ctxt, remote_side, NULL, out);
+                  enter_movement_conflict (ctxt, no_conflict, "Moved\n", out);
                 }
             }
           else
             {
               if (rem_ishere)
                 {
-                  enter_structural_conflict (ctxt, local_side, "Moved\n", out);
-                  enter_structural_conflict (ctxt, remote_side, NULL, out);
+                  enter_movement_conflict (ctxt, local_side, "Moved\n", out);
+                  enter_movement_conflict (ctxt, remote_side, NULL, out);
                   print_LR (ref, ctxt, out);
                   print_subelts (ref, ctxt, out);
-                  enter_structural_conflict (ctxt, no_conflict, "Moved\n", out);
+                  enter_movement_conflict (ctxt, no_conflict, "Moved\n", out);
                 }
               else
                 {
@@ -1192,7 +1265,7 @@ print_LU_RD (doc_ref *ref, print_ctxt *ctxt, doc_stream *out)
           enter_structural_conflict (ctxt, local_side, "Updated\n", out);
           print_L (ref, ctxt, out);
 	  print_subelts (ref, ctxt, out);
-          enter_structural_conflict (ctxt, remote_side, NULL, out);
+          //enter_structural_conflict (ctxt, remote_side, NULL, out);
           enter_structural_conflict (ctxt, no_conflict, "Deleted\n", out);
         }
     }
@@ -1214,7 +1287,7 @@ print_LD_RU (doc_ref *ref, print_ctxt *ctxt, doc_stream *out)
       if (org_heading_content_isupdated (heading, REM_INDEX) ||
 	  org_heading_subelts_isupdated (heading))
         {
-          enter_structural_conflict (ctxt, local_side, "Deleted\n", out);
+          //enter_structural_conflict (ctxt, local_side, "Deleted\n", out);
           enter_structural_conflict (ctxt, remote_side, NULL, out);
           print_R (ref, ctxt, out);
 	  print_subelts (ref, ctxt, out);
@@ -1326,8 +1399,8 @@ print_LR (doc_ref *ref, print_ctxt *ctxt, doc_stream *out)
       bool conflict = false;
 
       /* Level */
-      bool loc_level_update = (loc_data->level != anc_data->level);
-      bool rem_level_update = (rem_data->level != anc_data->level);
+      bool loc_level_update = (loc_data->rel_level != anc_data->rel_level);
+      bool rem_level_update = (rem_data->rel_level != anc_data->rel_level);
       if (loc_data->level != rem_data->level)
         {
           conflict = conflict || (loc_level_update && rem_level_update);
@@ -1423,21 +1496,30 @@ print_LR (doc_ref *ref, print_ctxt *ctxt, doc_stream *out)
 	  enter_content_conflict (ctxt, remote_side, NULL, out);
 	  print (h, REM_INDEX, ctxt, out);
 	  enter_content_conflict (ctxt, no_conflict, "Updated\n", out);
+
+	  ctxt->current_level += (h->data[REM_INDEX]->rel_level > h->data[LOC_INDEX]->rel_level) ?
+	    h->data[REM_INDEX]->rel_level : h->data[LOC_INDEX]->rel_level;
 	}
       else
 	{
 	  int col = 0;
+
+
 	  /* Print Stars */
 	  int i = 0;
 	  int level = 0;
-	  if (loc_level_update)
-	      level = loc_data->level;
-	  else
-	      level = rem_data->level;
+	  size_t index;
 
-	  col += level;
-	  for (i = 0; i < level; i++)
-	    doc_stream_putc('*', out);
+	  if (loc_level_update)
+            index = LOC_INDEX;
+	  else
+	    index = REM_INDEX;
+
+          debug_msg (ORG_HEADING, 5, "cur=%d, rel=%d \n", ctxt->current_level, level);
+	  col += print_stars (h, index, ctxt, out);
+
+	  /* Update the context */
+	  ctxt->current_level += h->data[index]->rel_level;
 
 	  /* Lead Witespace */
 	  if (loc_lead_ws_update)
@@ -1488,7 +1570,7 @@ print_LR (doc_ref *ref, print_ctxt *ctxt, doc_stream *out)
                             loc_data->tags_str,
                             rem_data->tags_str,
                             col, generate_body_ws, ctxt, out);
-  
+
           /* Post text */
           if (loc_post_text_update)
             col += substrprint (loc_data->post_text, out);
@@ -1511,7 +1593,8 @@ print_LR (doc_ref *ref, print_ctxt *ctxt, doc_stream *out)
 }
 
 /**
- * Print the local version of the heading.
+ * Print the local version of the heading.  Update the context
+ * accordingly.  Subelts will use the updated context when printing.
  */
 static inline void
 print_L (doc_ref *ref, print_ctxt *ctxt, doc_stream *out)
@@ -1519,6 +1602,8 @@ print_L (doc_ref *ref, print_ctxt *ctxt, doc_stream *out)
   debug_msg (DOC_ELT, 5, "Begin\n");
   org_heading *h  = (org_heading *)doc_ref_get_elt (ref);
   print (h, LOC_INDEX, ctxt, out);
+
+  ctxt->current_level += h->data[LOC_INDEX]->rel_level;
   return;
 }
 
@@ -1531,21 +1616,53 @@ print_R (doc_ref *ref, print_ctxt *ctxt, doc_stream *out)
   debug_msg (DOC_ELT, 5, "Begin\n");
   org_heading *h  = (org_heading *)doc_ref_get_elt (ref);
   print (h, REM_INDEX, ctxt, out);
+
+  ctxt->current_level += h->data[REM_INDEX]->rel_level;
   return;
 }
 
 /**
- * Print the version of the heading corresponding to the index.
+ * Print a single, unmerged version of the heading H. Print the
+ * version of the heading corresponding to the index.
  */
 static void
 print (org_heading *h, size_t index, print_ctxt *ctxt, doc_stream *out)
 {
-  /* Print stars */
-  substrprint (h->data[index]->entire_text, out);
-
+  print_stars (h, index, ctxt, out);
+  substrprint (h->data[index]->lead_ws, out);
+  substrprint (h->data[index]->todo, out);
+  substrprint (h->data[index]->body_text, out);
+  substrprint (h->data[index]->body_ws, out);
+  substrprint (h->data[index]->tags_str, out);
+  substrprint (h->data[index]->post_text, out);
+  substrprint (h->data[index]->linebreak, out);
   return;
 }
 
+/**
+ * Print the lead stars of a heading.  Print the stars of the version
+ * corresponding to index.  Use the print ctxt's current_level and the
+ * heading's relative level to print the correct number of stars.
+ * Returns the number of characters written to OUT.
+ */
+static int
+print_stars (org_heading *h, size_t index, print_ctxt *ctxt, doc_stream *out)
+{
+  debug_msg (ORG_HEADING, 5, "level: %d", h->data[index]->rel_level, out);
+  int num = h->data[index]->rel_level + ctxt->current_level;
+  int i = 0;
+  for (i = 0; i < num; i++)
+    {
+      doc_stream_putc ('*', out);
+    }
+  return num;
+}
+
+/**
+ * Print all sub-elements of the heading stored at ref, giving them
+ * the passed print_ctxt.  If the print ctxt should be changed, it
+ * must be done before this function is called.
+ */
 static void
 print_subelts (doc_ref *ref, print_ctxt *ctxt, doc_stream *out)
 {
@@ -1559,9 +1676,17 @@ static void
 org_heading_note_delete (doc_ref *ref, merge_ctxt *ctxt)
 {
   org_heading * heading = (org_heading *)doc_ref_get_elt(ref);
+  debug_msg (ORG_HEADING, 5, "key ='");
+  if (ORG_HEADING_PRINTLEVEL >= 5)
+    {
+      fwrite (heading->key.string, 1, heading->key.length, stderr);
+      fprintf (stderr, "'\n");
+    }
+
   if ((heading->key.length > 0) &&
       (doc_ref_contains (ref, ANC_SRC)))
     {
+      debug_msg (ORG_HEADING, 5, "registering\n");
       /* org_text does not have global matching, do nothing */
       smerger_register_delete (ctxt->global_smerger, ref, ctxt);
     }
@@ -1569,6 +1694,7 @@ org_heading_note_delete (doc_ref *ref, merge_ctxt *ctxt)
     {
       /* do nothing */
     }
+  doc_reflist_note_delete (heading->subheadings, ctxt);
   return;
 }
 
@@ -1578,19 +1704,16 @@ org_heading_note_insert (doc_ref *ref, merge_ctxt *ctxt)
   /*
    * Note a movement for all vesions that doc_ref represents.
    */
-
   org_heading *heading = (org_heading *)doc_ref_get_elt (ref);
+  debug_msg (ORG_HEADING, 5, "key = '");
+  if (ORG_HEADING_PRINTLEVEL >= 5)
+    {
+      fwrite (heading->key.string, 1, heading->key.length, stderr);
+      fprintf (stderr, "'\n");
+    }
+
   if (heading->key.length > 0)
     {
-      if (doc_ref_contains (ref, ANC_SRC))
-	heading->moved[srctoindex (ANC_SRC)] = true;
-
-      if (doc_ref_contains (ref, REM_SRC))
-	heading->moved[srctoindex (REM_SRC)] = true;
-
-      if (doc_ref_contains (ref, LOC_SRC))
-	heading->moved[srctoindex (LOC_SRC)] = true;
-
       /* org_text does not have global matching, do nothing */
       smerger_register_insert (ctxt->global_smerger, ref, ctxt);
     }
@@ -1598,6 +1721,7 @@ org_heading_note_insert (doc_ref *ref, merge_ctxt *ctxt)
     {
       /* Do nothing */
     }
+  doc_reflist_note_insert (heading->subheadings, ctxt);
   return;
 }
 
@@ -1756,7 +1880,7 @@ merge_tags (substr anc_str, substr loc_str, substr rem_str, size_t curr_col,
   bool close_mark = (char_count > 3);
   if (close_mark && gen_ws)
     {
-      debug_msg (DOC_ELT, 5, "Generating %d long body_ws\n",  
+      debug_msg (DOC_ELT, 5, "Generating %d long body_ws\n",
 		 (ctxt->rmargin - 1 - char_count - curr_col));
       int i;
       doc_stream_putc(' ', out);
@@ -1821,7 +1945,7 @@ org_heading_check_for_target (org_heading *this, org_heading* target)
   bool found =  false;
   org_heading *heading;
 
-  debug_msg (DOC,3, "checking subheadings for target...\n");
+  debug_msg (ORG_HEADING, 3, "checking subheadings for target...\n");
 
   while (!found
 	 && gl_list_iterator_next (&i, (const void **) &ref, NULL))
@@ -1829,7 +1953,7 @@ org_heading_check_for_target (org_heading *this, org_heading* target)
       heading = (org_heading *)doc_ref_get_elt (ref);
       if (heading == target)
         {
-          debug_msg (DOC, 1, "found loop!!\n");
+          debug_msg (ORG_HEADING,  1, "found loop!!\n");
           found = true;
         }
       else
@@ -1837,7 +1961,7 @@ org_heading_check_for_target (org_heading *this, org_heading* target)
           found = org_heading_check_for_target(heading, target);
         }
     }
-  debug_msg (DOC,3, "found = %d\n", found);
+  debug_msg (ORG_HEADING, 3, "found = %d\n", found);
   gl_list_iterator_free (&i);
   return found;
 }
@@ -1854,15 +1978,15 @@ org_heading_check_for_loop (org_heading *this)
   bool found =  false;
   org_heading *heading;
 
-  debug_msg (DOC,3, "checking for loops\n");
+  debug_msg (ORG_HEADING, 3, "checking for loops\n");
 
   if (org_heading_check_for_target (this, this))
     {
-      debug_msg (DOC, 1, "found loop!!\n");
+      debug_msg (ORG_HEADING,  1, "found loop!!\n");
       found = true;
     }
 
-  debug_msg (DOC,3, "checking subheadings for loops\n");
+  debug_msg (ORG_HEADING, 3, "checking subheadings for loops\n");
 
   while (gl_list_iterator_next (&i, (const void **) &ref, NULL))
     {

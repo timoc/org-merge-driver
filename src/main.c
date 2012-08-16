@@ -74,9 +74,7 @@ main (int argc, char *argv[])
   struct arguments arguments;
   error_t error = argp_parse (&argp, argc, argv, 0, 0, &arguments);
 
-
   /* Configure the contexts using arguments */
-
   struct parse_ctxt parse_ctxt;
   parse_ctxt_init (&parse_ctxt);
   if (gl_list_size (arguments.todo_states) > 0)
@@ -104,14 +102,13 @@ main (int argc, char *argv[])
   print_ctxt.rmargin   = arguments.rmargin;
   print_ctxt_set_defaults (&print_ctxt);
 
-
   /* Parse input files */
-
   org_document *anc = NULL;
   org_document *loc = NULL;
   org_document *rem = NULL;
 
   FILE *anc_file = fopen ( arguments.paths[0], "r");
+
   if (anc_file != NULL)
     {
       debug_msg (MAIN, 4, "File 1 opened\n");

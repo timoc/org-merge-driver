@@ -72,9 +72,14 @@ void org_heading_add_subtext_last (org_heading *heading, doc_src src,
 void org_heading_add_subheading_last (org_heading *heading, doc_src src,
 				      doc_elt *elt);
 
+/**
+ * @brief Set the values of a heading, using information stored in the
+ * ctxt */
+void org_heading_set_parse_ctxt (org_heading *heading, doc_src src, parse_ctxt *ctxt);
+
 bool org_heading_check_for_target (org_heading *this, org_heading* target);
 
-/* will call thes function on its children after it searches for
+/* will call the function on its children after it searches for
    itself */
 bool org_heading_check_for_loop (org_heading *this);
 

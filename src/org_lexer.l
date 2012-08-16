@@ -255,18 +255,19 @@ void headline_aoeaoe (org_heading *heading, char *string, size_t len, yyscan_t s
 
   org_property_set_key_length ((org_property *)yyextra->curr_elt, yyextra->src, key_length - pos);
 
-#if LEXER_PRINTLEVEL <= 5
+  if (LEXER_PRINTLEVEL == 5)
+    {
 
-  fwrite ( org_property_get_key_string ((org_property *)yyextra->curr_elt, yyextra->src),
-	   sizeof (char) , org_property_get_key_length ((org_property *)yyextra->curr_elt,
-							yyextra->src),
-	    stderr);
+      fwrite ( org_property_get_key_string ((org_property *)yyextra->curr_elt, yyextra->src),
+               sizeof (char) , org_property_get_key_length ((org_property *)yyextra->curr_elt,
+                                                            yyextra->src),
+               stderr);
 
-  fwrite ( org_property_get_value_string ((org_property *)yyextra->curr_elt, yyextra->src),
-	   sizeof (char) , org_property_get_value_length ((org_property *)yyextra->curr_elt,
-							yyextra->src),
-	    stderr);
-#endif
+      fwrite ( org_property_get_value_string ((org_property *)yyextra->curr_elt, yyextra->src),
+               sizeof (char) , org_property_get_value_length ((org_property *)yyextra->curr_elt,
+                                                              yyextra->src),
+               stderr);
+    }
 
   /* return the property */
   debug_msg (LEXER, 3, "Property Return\n");

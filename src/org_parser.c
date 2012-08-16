@@ -77,20 +77,17 @@ rec_parse_document (yyscan_t scanner, org_document *this, parse_ctxt *ctxt)
 
   bool exit = false;
   doc_elt * ret = 0;
-  //int last_level = level;
 
   /* Get the next element from the scanner */
   TOKEN tok = yylex (scanner);
   doc_elt * elt = yyget_extra (scanner)->elt;
   doc_src src = yyget_extra (scanner) -> src;
 
-#if PARSER_PRINTLEVEL > 4
-  //doc_elt_print (elt, NULL, stderr);
-#endif
-
   /* Parse the file */
   while(!exit)
     {
+      ctxt->current_level = 0;
+
       if (tok == T_NOTHING)
 	{
 	  debug_msg (PARSER, 3, "Got Nothing\n");
@@ -110,6 +107,8 @@ rec_parse_document (yyscan_t scanner, org_document *this, parse_ctxt *ctxt)
 	      debug_msg (PARSER, 3, "Adding Sub-Heading\n");
 	      /* next level is at least more than this one */
 	      org_document_add_heading_last (this, src, (org_heading *) elt);
+              org_heading_set_parse_ctxt ((org_heading *) elt, src, ctxt);
+
 	      elt = (doc_elt *)
 		rec_parse_heading(scanner, (org_heading *) elt, next_level, ctxt);
 	    }
@@ -163,16 +162,14 @@ rec_parse_heading(yyscan_t scanner, org_heading *this, int this_level, parse_ctx
   doc_elt * elt = yyget_extra (scanner)->elt;
   doc_src src = yyget_extra (scanner) -> src;
 
-#if PARSER_PRINTLEVEL > 4
-  //doc_elt_print (elt, NULL, stderr);
-#endif
-
   /* Parse the file */
   while(!exit)
     {
+
+      ctxt->current_level = this_level;
+
       if (tok == T_NOTHING)
 	{
-
 	  debug_msg (PARSER, 3, "Got Nothing\n");
 	  /* do nothing */
 	}
@@ -182,7 +179,7 @@ rec_parse_heading(yyscan_t scanner, org_heading *this, int this_level, parse_ctx
 	  //int next_level = 1;
 	  if (next_level <= this_level)
 	    {
-	      debug_msg (PARSER, 3, "-return heading\n");
+	      debug_msg (PARSER, 4, "-return heading\n");
 	      return elt;
 	    }
 	  else
@@ -190,6 +187,7 @@ rec_parse_heading(yyscan_t scanner, org_heading *this, int this_level, parse_ctx
 	      debug_msg (PARSER, 3, "Adding Sub-Heading\n");
 	      /* next level is at least more than this one */
 	      org_heading_add_subheading_last (this, src, elt);
+              org_heading_set_parse_ctxt ((org_heading *) elt, src, ctxt);
 	      elt =
 		rec_parse_heading(scanner, (org_heading *)elt, next_level, ctxt);
 	    }

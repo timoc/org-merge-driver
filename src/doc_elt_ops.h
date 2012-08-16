@@ -10,7 +10,6 @@
 #include <assert.h>
 
 #include "doc_stream.h"
-//#include "doc_elt.h"
 #include "doc_ref.h"
 
 /* document element type, from doc_elt.h */

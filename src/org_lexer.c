@@ -8,7 +8,7 @@
 #define FLEX_SCANNER
 #define YY_FLEX_MAJOR_VERSION 2
 #define YY_FLEX_MINOR_VERSION 5
-#define YY_FLEX_SUBMINOR_VERSION 36
+#define YY_FLEX_SUBMINOR_VERSION 37
 #if YY_FLEX_SUBMINOR_VERSION > 0
 #define FLEX_BETA
 #endif
@@ -1074,18 +1074,19 @@ YY_RULE_SETUP
 
   org_property_set_key_length ((org_property *)yyextra->curr_elt, yyextra->src, key_length - pos);
 
-#if LEXER_PRINTLEVEL <= 5
+  if (LEXER_PRINTLEVEL == 5)
+    {
 
-  fwrite ( org_property_get_key_string ((org_property *)yyextra->curr_elt, yyextra->src),
-	   sizeof (char) , org_property_get_key_length ((org_property *)yyextra->curr_elt,
-							yyextra->src),
-	    stderr);
+      fwrite ( org_property_get_key_string ((org_property *)yyextra->curr_elt, yyextra->src),
+               sizeof (char) , org_property_get_key_length ((org_property *)yyextra->curr_elt,
+                                                            yyextra->src),
+               stderr);
 
-  fwrite ( org_property_get_value_string ((org_property *)yyextra->curr_elt, yyextra->src),
-	   sizeof (char) , org_property_get_value_length ((org_property *)yyextra->curr_elt,
-							yyextra->src),
-	    stderr);
-#endif
+      fwrite ( org_property_get_value_string ((org_property *)yyextra->curr_elt, yyextra->src),
+               sizeof (char) , org_property_get_value_length ((org_property *)yyextra->curr_elt,
+                                                              yyextra->src),
+               stderr);
+    }
 
   /* return the property */
   debug_msg (LEXER, 3, "Property Return\n");
@@ -1113,7 +1114,7 @@ YY_RULE_SETUP
 case 8:
 /* rule 8 can match eol */
 YY_RULE_SETUP
-#line 294 "org_lexer.l"
+#line 295 "org_lexer.l"
 {
    debug_msg (LEXER, 3, "PROPERTIES drawer start\n");
    /* Create a temporary data store */
@@ -1165,7 +1166,7 @@ YY_RULE_SETUP
 case 9:
 /* rule 9 can match eol */
 YY_RULE_SETUP
-#line 342 "org_lexer.l"
+#line 343 "org_lexer.l"
 {
    debug_msg (LEXER, 3, "END Drawer\n");
 
@@ -1228,7 +1229,7 @@ case YY_STATE_EOF(property_skipwhitespace):
 case YY_STATE_EOF(property_value):
 case YY_STATE_EOF(property_finish):
 case YY_STATE_EOF(property_drawer):
-#line 396 "org_lexer.l"
+#line 397 "org_lexer.l"
 {
   debug_msg (LEXER, 5, "EOF\n");
   if (yyextra->curr_elt != NULL)
@@ -1248,10 +1249,10 @@ case YY_STATE_EOF(property_drawer):
 	YY_BREAK
 case 10:
 YY_RULE_SETUP
-#line 413 "org_lexer.l"
+#line 414 "org_lexer.l"
 ECHO;
 	YY_BREAK
-#line 1255 "org_lexer.c"
+#line 1256 "org_lexer.c"
 
 	case YY_END_OF_BUFFER:
 		{
@@ -2404,7 +2405,7 @@ void yyfree (void * ptr , yyscan_t yyscanner)
 
 #define YYTABLES_NAME "yytables"
 
-#line 413 "org_lexer.l"
+#line 414 "org_lexer.l"
 
 
 

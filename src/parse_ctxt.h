@@ -16,6 +16,7 @@ typedef struct gl_list_impl * gl_list_t;
 typedef struct parse_ctxt
 {
   gl_list_t todo_states;
+  size_t current_level;
 } parse_ctxt;
 
 /**
