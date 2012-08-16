@@ -7,8 +7,7 @@
 #define PRINT_H
 #include "doc_stream.h"
 
-struct print_ctxt;
-typedef struct print_ctxt print_ctxt;
+#include "print_ctxt.h"
 
 /**
  * @todo Find a way to deal with advancing the print mode with the
@@ -16,38 +15,26 @@ typedef struct print_ctxt print_ctxt;
  */
 
 /**
- * @brief A context for the current printing mode.
- *
- * It acts as a request to print only certain information.  It does
- * not imply what side of a conflict we are printing.
- */
-typedef enum print_state
-  {
-    print_merged,
-    print_remote,
-    print_local,
-    print_ancestor
-  } print_state;
-
-/**
- * @brief The current state of conflict markers.
- */
-typedef enum conflict_state
-  {
-    no_conflict = 0,
-    local_side  = 1,
-    remote_side = 2
-  } conflict_state;
-
-/**
  * @brief enter a certain part of a structural conflict.
  *
  * This function enters a structural conflict.  If it is already in
- * the correct state, it will do nothing.  It will wrap up any content
+ * the correct state, it will do nothing.  It will wrap up any movement
  * conflicts before switching
  */
 void enter_structural_conflict (print_ctxt *ctxt, conflict_state state,
 				char* msg, doc_stream *out);
+
+/**
+ * @brief enter a certain part of a movement conflict.
+ *
+ * This function enters a structural conflict. If it is already in the
+ * correct state, it will do nothing. It will wrap up any content
+ * conflicts before switching. Movement Conflicts are assumed to be
+ * nestable between parents and children. It is up to the parent to
+ * ensure that the print ctxt is set up for this.
+ */
+void enter_movement_conflict (print_ctxt *ctxt, conflict_state state,
+                         char* msg, doc_stream *out);
 
 /**
  * @brief enter a certain part of a content conflict.
@@ -57,5 +44,40 @@ void enter_structural_conflict (print_ctxt *ctxt, conflict_state state,
  */
 void enter_content_conflict (print_ctxt *ctxt, conflict_state state,
 			     char* msg, doc_stream *out);
+
+static inline conflict_state print_ctxt_get_content_state (print_ctxt *ctxt);
+
+static inline conflict_state print_ctxt_get_structure_state (print_ctxt *ctxt);
+
+static inline conflict_state print_ctxt_get_movement_state (print_ctxt *ctxt);
+static inline void print_ctxt_set_movement_state (print_ctxt *ctxt, conflict_state state);
+
+/*
+ * Implementation
+ */
+
+static inline conflict_state
+print_ctxt_get_content_state (print_ctxt *ctxt)
+{
+  return ctxt->structure_conflict;
+}
+
+static inline conflict_state
+print_ctxt_get_structure_state (print_ctxt *ctxt)
+{
+  return ctxt->content_conflict;
+}
+
+static inline conflict_state
+print_ctxt_get_movement_state (print_ctxt *ctxt)
+{
+  return ctxt->movement_conflict;
+}
+
+static inline void
+print_ctxt_set_movement_state (print_ctxt *ctxt, conflict_state state)
+{
+  ctxt->movement_conflict = state;
+}
 
 #endif /* PRINT_H */

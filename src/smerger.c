@@ -1,3 +1,5 @@
+#include <string.h>
+
 #include "config.h"
 #include "gl_rbtree_list.h"
 #include "gl_list.h"
@@ -133,14 +135,7 @@ static inline doc_ref *
 smerger_match_remove (gl_list_t list, doc_ref *ref, merge_ctxt *ctxt)
 {
   debug_msg (SMERGER, 5, "Begin\n");
-  /*
-  if (SMERGER_PRINTLEVEL > 3)
-    {
-      debug_msg (SMERGER, 3, "Matching heading ='");
-      doc_elt_print (ref, NULL, stdout);
-      debug_msg (SMERGER, 3, "'\n");
-    }
-  */
+
   doc_ref        *match    = NULL;
   gl_list_node_t listnode  = NULL;
   int            last_pos  = 0;
@@ -207,25 +202,21 @@ smerger_remove_exactly ( gl_list_t list, doc_ref *ref)
  * element.
  */
 static inline int
-smerger_merge (doc_ref *ancestor, doc_ref *descendant, merge_ctxt *ctxt)
+smerger_merge (doc_ref *ancestor, doc_ref *descendant, merge_ctxt *old_ctxt)
 {
   debug_msg (SMERGER, 5, "Begin\n");
   int status = 0;
   doc_elt *anc_elt = doc_ref_get_elt (ancestor);
 
-  /* check for a circular conflict */
-  //doc_ref_set_elt (descendant, anc_elt);
-  //doc_ref_set_parent (descendant, ancestor->parent);
-  //doc_ref_check_for_circular_conflict (descendant);
-  // doc_ref_set_parent (ancestor,descendant->parent);
+  /* Clone the context */
+  merge_ctxt new_ctxt = *old_ctxt;
+  //memcpy (&new_ctxt, ctxt, sizeof (merge_ctxt));
 
-  doc_elt_merge (ancestor, descendant, ctxt);
+  /* Modify the strategy to indicate */
+  new_ctxt.strategy = GLOBAL_SEARCH_MERGE;
 
-  //if (doc_elt_get_type (anc_elt) == ORG_HEADING)
-  //if (doc_ref_contains (descendant, LOC_SRC))
-  //{
-      //org_heading_set_doc_ref ((org_heading *)anc_elt, descendant);
-  //}
+  doc_elt_merge (ancestor, descendant, &new_ctxt);
+  doc_ref_set_elt (descendant, anc_elt);
 
   debug_msg (SMERGER, 5, "Return =%d\n", status);
   return status;

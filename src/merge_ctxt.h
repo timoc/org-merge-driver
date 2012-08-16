@@ -8,6 +8,13 @@
 #ifndef MERGE_CTXT_H
 #define MERGE_CTXT_H
 
+typedef enum merge_strategy {
+  NO_STRATEGY,
+  GLOBAL_SEARCH_MERGE,
+  LOCAL_LIST_MERGE,
+  LOCAL_SEARCH_MERGE
+} merge_strategy;
+
 struct gl_list_impl;
 typedef struct gl_list_impl * gl_list_t;
 
@@ -18,6 +25,7 @@ typedef struct merge_ctxt
 {
   smerger *global_smerger;
   gl_list_t priorities;
+  merge_strategy strategy;
 } merge_ctxt;
 
 /**

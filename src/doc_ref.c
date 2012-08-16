@@ -3,6 +3,7 @@
  */
 
 #include <stdlib.h>
+#include <string.h>
 #include "debug.h"
 #include "config.h"
 #include "gl_list.h"
@@ -12,6 +13,7 @@
 #include <stdbool.h>
 #include "minmax.h"
 
+#include "print.h"
 #include "doc_elt.h"
 #include "doc_ref.h"
 
@@ -42,9 +44,16 @@ doc_reflist_isupdated (gl_list_t reflist)
 void
 doc_reflist_print (gl_list_t reflist, void *context, doc_stream *out)
 {
-  /**
-   * @todo make the print ctxt pass around correctly
+  /*
+   * copy the mave context to allow nested movement conflicts
    */
+  print_ctxt * print_ctxt = context;
+
+  conflict_state parent_move_state = print_ctxt_get_movement_state (print_ctxt);
+  print_ctxt_set_movement_state (print_ctxt, no_conflict);
+
+  size_t parent_level = print_ctxt->current_level;
+
   debug_msg (DOC, 5, "Printing element list\n");
   gl_list_iterator_t i;
   i = gl_list_iterator (reflist);
@@ -55,9 +64,50 @@ doc_reflist_print (gl_list_t reflist, void *context, doc_stream *out)
     {
       debug_msg (DOC, 4, "Printing element\n");
       elt = doc_ref_get_elt (ref);
+      print_ctxt->current_level = parent_level;
       doc_elt_print (ref, context, out);
+      enter_movement_conflict (print_ctxt, no_conflict, "Moved\n", out);
     }
+
+  print_ctxt_set_movement_state (print_ctxt, parent_move_state);
+
   debug_msg (DOC, 5, "Finished printing element\n");
+  gl_list_iterator_free (&i);
+  return;
+}
+
+void
+doc_reflist_note_insert (gl_list_t reflist, merge_ctxt *ctxt)
+{
+  debug_msg (DOC, 5, "Inserting element list\n");
+  gl_list_iterator_t i;
+  i = gl_list_iterator (reflist);
+  doc_ref *ref;
+  doc_elt *elt;
+
+  while (gl_list_iterator_next (&i, (const void **) &ref, NULL))
+    {
+      elt = doc_ref_get_elt (ref);
+      doc_elt_note_insert (ref, ctxt);
+    }
+  gl_list_iterator_free (&i);
+  return;
+}
+
+void
+doc_reflist_note_delete(gl_list_t reflist, merge_ctxt *ctxt)
+{
+  debug_msg (DOC, 5, "Deleting element list\n");
+  gl_list_iterator_t i;
+  i = gl_list_iterator (reflist);
+  doc_ref *ref;
+  doc_elt *elt;
+
+  while (gl_list_iterator_next (&i, (const void **) &ref, NULL))
+    {
+      elt = doc_ref_get_elt (ref);
+      doc_elt_note_delete (ref, ctxt);
+    }
   gl_list_iterator_free (&i);
   return;
 }
@@ -121,8 +171,14 @@ is_related (struct context *ctxt, OFFSET xoff, OFFSET yoff)
 }
 
 void
-doc_reflist_merge (doc_ref *parent, gl_list_t ancestor, gl_list_t descendant, merge_ctxt *merge_ctxt)
+doc_reflist_merge (doc_ref *parent, gl_list_t ancestor, gl_list_t descendant, merge_ctxt *m_ctxt)
 {
+
+  /* Clone the merge context */
+  merge_ctxt new_m_ctxt = *m_ctxt;
+  // memcpy (&new_m_ctxt, m_ctxt, sizeof (merge_ctxt));
+  new_m_ctxt.strategy = LOCAL_LIST_MERGE;
+
   /* First, create a mapped_state for every element that will be mapped.
    * Compare the two strigs marking mapped and unmapped nodes.  Then,
    * merge the two lists, combining mapped elements ino a sigle element.
@@ -149,7 +205,7 @@ doc_reflist_merge (doc_ref *parent, gl_list_t ancestor, gl_list_t descendant, me
   ctxt.a_state    = a_state;
   ctxt.ancestor   = ancestor;
   ctxt.descendant = descendant;
-  ctxt.merge_ctxt = merge_ctxt;
+  ctxt.merge_ctxt = &new_m_ctxt;
 
   /* Allocate data for the algorithm to use*/
   size_t diags = a_size + d_size + 3;
@@ -244,7 +300,7 @@ doc_reflist_merge (doc_ref *parent, gl_list_t ancestor, gl_list_t descendant, me
           //doc_ref_check_for_circular_conflict (d_ref);
 
 	  //mark_insert_children ();
-	  doc_elt_note_insert (d_ref, merge_ctxt);
+	  doc_elt_note_insert (d_ref, &new_m_ctxt);
 
 	  a_index++;
 	  a_size++;
@@ -258,7 +314,7 @@ doc_reflist_merge (doc_ref *parent, gl_list_t ancestor, gl_list_t descendant, me
 	  doc_ref * a_ref = (doc_ref *) gl_list_get_at (ancestor, a_index);
 
 	  // mark_remove_children (m_child, src);
-	  doc_elt_note_delete (a_ref, merge_ctxt);
+	  doc_elt_note_delete (a_ref, &new_m_ctxt);
 	  a_index++;
 	}
       else  if ((a_index != a_size) && (d_index != d_size))
@@ -275,12 +331,12 @@ doc_reflist_merge (doc_ref *parent, gl_list_t ancestor, gl_list_t descendant, me
 	  doc_ref_add_src (a_ref, doc_ref_get_src (d_ref));
 
 	  /* get the element to merge the content and children */
-	  doc_elt_merge (a_ref, d_ref, merge_ctxt);
+	  doc_elt_merge (a_ref, d_ref, &new_m_ctxt);
 
 	  /* make the doc_refs point to the same element */
-	  //doc_ref_set_elt (d_ref, doc_ref_get_elt (a_ref) );
+	  doc_ref_set_elt (d_ref, doc_ref_get_elt (a_ref) );
           //doc_ref_set_parent (d_ref, doc_ref_get_parent (a_ref));
-          //printf ("merging docrefs, par=%d, ref=%d\n", doc_ref_get_elt (a_ref), doc_ref_get_elt (d_ref));
+
 	  a_index++;
 	  d_index++;
 	}

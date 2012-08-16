@@ -8,9 +8,7 @@
 #include <stdlib.h>
 #include "gl_list.h"
 #include "doc_stream.h"
-//#include "doc_elt.h"
 
-/* #include "doc_elt.h" */
 struct doc_elt;
 typedef struct doc_elt doc_elt;
 typedef struct merge_ctxt merge_ctxt;
@@ -54,7 +52,10 @@ static inline void doc_ref_add_src (doc_ref *ref, doc_src src);
 static inline bool doc_ref_isexactly (doc_ref *ref, doc_src src);
 static inline bool doc_ref_contains (doc_ref *ref, doc_src src);
 static inline doc_ref *doc_ref_get_parent (doc_ref *ref);
-static inline void doc_ref_set_paraent (doc_ref *ref, doc_ref* parent);
+static inline void doc_ref_set_parent (doc_ref *ref, doc_ref* parent);
+
+void doc_reflist_note_insert (gl_list_t reflist, merge_ctxt *ctxt);
+void doc_reflist_note_delete (gl_list_t reflist, merge_ctxt *ctxt);
 
 /* circular conflict */
 static inline bool doc_ref_is_circular_conflict (doc_ref *ref);

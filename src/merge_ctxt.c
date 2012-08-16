@@ -17,6 +17,7 @@ static gl_list_t merge_ctxt_create_default_priorities ();
 void
 merge_ctxt_init (merge_ctxt *ctxt)
 {
+  ctxt->strategy = NO_STRATEGY;
   ctxt->global_smerger = NULL;
   ctxt->priorities = NULL;
   return;

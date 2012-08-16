@@ -7,6 +7,14 @@ static const char *start_mark  = ">>>>>>> ";
 static const char *middle_mark = "======= ";
 static const char *end_mark    = "<<<<<<< ";
 
+/*
+ * Print the conflict markers
+ */
+static void
+print_conflict_markers (conflict_state *current_state, conflict_state state,
+                        char* msg, doc_stream *out);
+
+
 void
 enter_structural_conflict (print_ctxt *ctxt, conflict_state state,
 			   char* msg, doc_stream *out)
@@ -16,6 +24,27 @@ enter_structural_conflict (print_ctxt *ctxt, conflict_state state,
 
   if ( ctxt->structure_conflict != state )
     {
+      enter_movement_conflict (ctxt, no_conflict, NULL, out);
+    }
+  else
+    return;
+
+  if (state != no_conflict)
+    ctxt->conflict_occurred = true;
+
+  print_conflict_markers (&ctxt->structure_conflict, state, msg, out);
+
+  return;
+}
+
+void
+enter_movement_conflict (print_ctxt *ctxt, conflict_state state,
+                         char* msg, doc_stream *out)
+{
+  /* wrap up the conflicts, print a message on the last conflict
+   * marker, if there is one */
+  if ( ctxt->movement_conflict != state )
+    {
       enter_content_conflict (ctxt, no_conflict, NULL, out);
     }
   else
@@ -24,38 +53,7 @@ enter_structural_conflict (print_ctxt *ctxt, conflict_state state,
   if (state != no_conflict)
     ctxt->conflict_occurred = true;
 
-  while (ctxt->structure_conflict != state )
-    {
-      /*conflict wrap up */
-      switch (ctxt->structure_conflict)
-	{
-	case no_conflict:
-	  doc_stream_puts (start_mark, out);
-	  break;
-	case local_side:
-	  doc_stream_puts (middle_mark, out);
-	  break;
-	case remote_side:
-	  doc_stream_puts (end_mark, out);
-	  break;
-	}
-      ctxt->structure_conflict ++;
-
-      if (ctxt->structure_conflict == 3)
-	ctxt->structure_conflict = 0;
-
-      if (ctxt->structure_conflict != state)
-	doc_stream_putc ('\n', out);
-    }
-
-  if (msg != NULL)
-    {
-      doc_stream_puts (msg, out);
-    }
-  else
-    {
-      doc_stream_putc ('\n', out);
-    }
+  print_conflict_markers (&ctxt->movement_conflict, state, msg, out);
 
   return;
 }
@@ -70,10 +68,20 @@ enter_content_conflict (print_ctxt *ctxt, conflict_state state,
   if (state != no_conflict)
     ctxt->conflict_occurred = true;
 
-  while ( ctxt->content_conflict != state  )
+  print_conflict_markers (&ctxt->content_conflict, state, msg, out);
+
+  return;
+}
+
+static void
+print_conflict_markers (conflict_state *current_state, conflict_state state,
+                        char* msg, doc_stream *out)
+{
+
+  while (*current_state != state )
     {
       /*conflict wrap up */
-      switch (ctxt->content_conflict)
+      switch (*current_state)
 	{
 	case no_conflict:
 	  doc_stream_puts (start_mark, out);
@@ -85,14 +93,13 @@ enter_content_conflict (print_ctxt *ctxt, conflict_state state,
 	  doc_stream_puts (end_mark, out);
 	  break;
 	}
-      ctxt->content_conflict ++;
+      (*current_state) ++;
 
-      if (ctxt->content_conflict == 3)
-	ctxt->content_conflict = 0;
+      if (*current_state == 3)
+	*current_state = 0;
 
-      if (ctxt->content_conflict != state)
+      if (*current_state != state)
 	doc_stream_putc ('\n', out);
-
     }
 
   if (msg != NULL)
@@ -103,7 +110,5 @@ enter_content_conflict (print_ctxt *ctxt, conflict_state state,
     {
       doc_stream_putc ('\n', out);
     }
-
   return;
 }
-

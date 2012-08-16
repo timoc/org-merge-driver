@@ -20,6 +20,7 @@ void
 print_ctxt_init (print_ctxt *ctxt)
 {
   ctxt->depth = 0;
+  ctxt->current_level = 0;
   ctxt->rmargin = 0;
   ctxt->tab_width = 0;
   ctxt->use_tabs = 0;
@@ -27,6 +28,7 @@ print_ctxt_init (print_ctxt *ctxt)
   ctxt->nested_conflicts = no_conflict;
   ctxt->structure_conflict = no_conflict;
   ctxt->content_conflict = no_conflict;
+  ctxt->movement_conflict = no_conflict;
   ctxt->conflict_occurred = false;
   return;
 }
