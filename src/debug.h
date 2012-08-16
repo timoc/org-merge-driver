@@ -18,6 +18,7 @@
 #define LEXER_PRINTLEVEL     DEFAULT_PRINTLEVEL
 #define PARSER_PRINTLEVEL    DEFAULT_PRINTLEVEL
 #define DOC_ELT_PRINTLEVEL   DEFAULT_PRINTLEVEL
+#define ORG_HEADING_PRINTLEVEL DEFAULT_PRINTLEVEL
 #define LISTMERGE_PRINTLEVEL DEFAULT_PRINTLEVEL
 #define SMERGER_PRINTLEVEL   DEFAULT_PRINTLEVEL
 
@@ -41,6 +42,9 @@
 #define DEBUG_MODULE DEFAULT
 #endif /* DEBUG_MODULE */
 
+/* lint checkers cannot understand variadic macros */
+#ifndef S_SPLINT_S
+
 #define debug_printf(format, ...) \
   debug_msg(DEFAULT, DEFAULT_PRINTLEVEL, format, ##__VA_ARGS__)
 
@@ -49,5 +53,11 @@
     fprintf (DEBUG_OUT, #module"-%d:%s:%d:%s " format,          \
       level, __FILE__, __LINE__, __func__, ##__VA_ARGS__);	\
     }} while (0)
+
+#else /* ! S_SPLINT_S */
+#define comment
+#define debug_msg coment ## coment
+#undef comment
+#endif /* S_SPLINT_S */
 
 #endif /*DEBUG_H */
