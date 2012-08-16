@@ -476,6 +476,23 @@ static yyconst flex_int16_t yy_chk[117] =
 #line 1 "org_lexer.l"
 /* Org Mode file lexer -*-c-*- */
 #line 3 "org_lexer.l"
+
+/*
+ * This program is free software: you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License as
+ * published by the Free Software Foundation, either vers* ion 3 of
+ * the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see
+ * <http://www.gnu.org/licenses/>.
+ */
+
  /* Org Mode lexer */
 #include <stdio.h>
 #include <stdlib.h>
@@ -498,7 +515,7 @@ void headline_aoeaoe (org_heading *heading, char *string, size_t len, yyscan_t s
 /* Rule Start Conditions */
 
 
-#line 502 "org_lexer.c"
+#line 519 "org_lexer.c"
 
 #define INITIAL 0
 #define heading 1
@@ -731,7 +748,7 @@ YY_DECL
 	register int yy_act;
     struct yyguts_t * yyg = (struct yyguts_t*)yyscanner;
 
-#line 32 "org_lexer.l"
+#line 49 "org_lexer.l"
 
 
  /*
@@ -739,7 +756,7 @@ YY_DECL
   * "** Heading blah blah "
   */
  /* start of a heading */
-#line 743 "org_lexer.c"
+#line 760 "org_lexer.c"
 
 	if ( !yyg->yy_init )
 		{
@@ -832,7 +849,7 @@ do_action:	/* This label is used only to access EOF actions. */
 case 1:
 /* rule 1 can match eol */
 YY_RULE_SETUP
-#line 39 "org_lexer.l"
+#line 56 "org_lexer.l"
 {
    debug_msg (LEXER, 4, "heading start\n");
 
@@ -870,7 +887,7 @@ YY_RULE_SETUP
 /* start of a plain text segment */
 case 2:
 YY_RULE_SETUP
-#line 74 "org_lexer.l"
+#line 91 "org_lexer.l"
 {
   BEGIN(text);
   yymore ();
@@ -881,7 +898,7 @@ YY_RULE_SETUP
 case 3:
 /* rule 3 can match eol */
 YY_RULE_SETUP
-#line 81 "org_lexer.l"
+#line 98 "org_lexer.l"
 {
   debug_msg (LEXER, 5, "text finish line\n");
 
@@ -925,7 +942,7 @@ YY_RULE_SETUP
 case 4:
 /* rule 4 can match eol */
 YY_RULE_SETUP
-#line 121 "org_lexer.l"
+#line 138 "org_lexer.l"
 {
   debug_msg (LEXER, 5, "text add newline\n");
 
@@ -977,7 +994,7 @@ YY_RULE_SETUP
 case 5:
 /* rule 5 can match eol */
 YY_RULE_SETUP
-#line 169 "org_lexer.l"
+#line 186 "org_lexer.l"
 {
    debug_msg (LEXER, 3, "property start\n");
    /* Create a temporary data store */
@@ -1004,7 +1021,7 @@ YY_RULE_SETUP
 /* skip white space */
 case 6:
 YY_RULE_SETUP
-#line 193 "org_lexer.l"
+#line 210 "org_lexer.l"
 {
   /* store the offset to the start of the value */
   org_property_set_value_length ((org_property *)yyextra->curr_elt, yyextra->src,
@@ -1017,7 +1034,7 @@ YY_RULE_SETUP
 case 7:
 /* rule 7 can match eol */
 YY_RULE_SETUP
-#line 202 "org_lexer.l"
+#line 219 "org_lexer.l"
 {
   /* Set the property text.
    * At this point, the values of the property look like this:
@@ -1114,7 +1131,7 @@ YY_RULE_SETUP
 case 8:
 /* rule 8 can match eol */
 YY_RULE_SETUP
-#line 295 "org_lexer.l"
+#line 312 "org_lexer.l"
 {
    debug_msg (LEXER, 3, "PROPERTIES drawer start\n");
    /* Create a temporary data store */
@@ -1166,7 +1183,7 @@ YY_RULE_SETUP
 case 9:
 /* rule 9 can match eol */
 YY_RULE_SETUP
-#line 343 "org_lexer.l"
+#line 360 "org_lexer.l"
 {
    debug_msg (LEXER, 3, "END Drawer\n");
 
@@ -1229,7 +1246,7 @@ case YY_STATE_EOF(property_skipwhitespace):
 case YY_STATE_EOF(property_value):
 case YY_STATE_EOF(property_finish):
 case YY_STATE_EOF(property_drawer):
-#line 397 "org_lexer.l"
+#line 414 "org_lexer.l"
 {
   debug_msg (LEXER, 5, "EOF\n");
   if (yyextra->curr_elt != NULL)
@@ -1249,10 +1266,10 @@ case YY_STATE_EOF(property_drawer):
 	YY_BREAK
 case 10:
 YY_RULE_SETUP
-#line 414 "org_lexer.l"
+#line 431 "org_lexer.l"
 ECHO;
 	YY_BREAK
-#line 1256 "org_lexer.c"
+#line 1273 "org_lexer.c"
 
 	case YY_END_OF_BUFFER:
 		{
@@ -2405,7 +2422,7 @@ void yyfree (void * ptr , yyscan_t yyscanner)
 
 #define YYTABLES_NAME "yytables"
 
-#line 414 "org_lexer.l"
+#line 431 "org_lexer.l"
 
 
 
